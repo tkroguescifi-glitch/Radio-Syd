@@ -1,0 +1,31 @@
+# Audio files (large, generated)
+audio/tts/session_*/
+audio/recordings/session_*/
+audio/episodes/*.wav
+audio/episodes/*.mp3
+
+# Keep directory structure
+!audio/tts/.gitkeep
+!audio/recordings/.gitkeep
+!audio/episodes/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and credentials
+.env
+*.json
+!package.json
+service-account*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# DAW project files (optional - uncomment if needed)
+# *.aup3
+# *.rpp
+# *.band

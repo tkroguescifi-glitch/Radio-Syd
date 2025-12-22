@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Mic Test // Radio SYD{% endblock %}
+
+{% block extra_styles %}
+.test-container {
+    max-width: 500px;
+    margin: 2rem auto;
+    text-align: center;
+}
+
+.btn-test {
+    background: var(--surface);
+    border: 2px solid var(--subject);
+    color: var(--subject);
+    padding: 2rem 3rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    font-family: inherit;
+    margin: 2rem 0;
+}
+
+.btn-test.recording {
+    background: var(--subject);
+    color: var(--bg);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.result {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-top: 1rem;
+    text-align: left;
+}
+
+.result h3 {
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.transcription {
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.status {
+    color: var(--text-dim);
+    margin: 1rem 0;
+}
+
+.status.active {
+    color: var(--accent);
+}
+
+audio {
+    width: 100%;
+    margin: 1rem 0;
+}
+
+.back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">&larr; Back</a>
+
+<div class="test-container">
+    <h1>Mic Test</h1>
+    <p>Click to record, click again to stop. Audio will play back and transcribe.</p>
+
+    <button id="testBtn" class="btn-test" onclick="toggleTest()">
+        🎙 Hold to Record
+    </button>
+
+    <div class="status" id="status">Ready</div>
+
+    <audio id="playback" controls style="display:none;"></audio>
+
+    <div class="result" id="result" style="display:none;">
+        <h3>Transcription</h3>
+        <div class="transcription" id="transcription"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+
+const testBtn = document.getElementById('testBtn');
+const status = document.getElementById('status');
+const playback = document.getElementById('playback');
+const result = document.getElementById('result');
+const transcription = document.getElementById('transcription');
+
+async function toggleTest() {
+    if (isRecording) {
+        stopTest();
+    } else {
+        startTest();
+    }
+}
+
+async function startTest() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', ''];
+        let options = {};
+        for (const mimeType of mimeTypes) {
+            if (mimeType === '' || MediaRecorder.isTypeSupported(mimeType)) {
+                if (mimeType) options.mimeType = mimeType;
+                break;
+            }
+        }
+
+        mediaRecorder = new MediaRecorder(stream, options);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            processTest();
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        testBtn.textContent = '⏹ Stop Recording';
+        testBtn.classList.add('recording');
+        status.textContent = 'Recording...';
+        status.className = 'status active';
+
+    } catch (e) {
+        status.textContent = 'Mic access denied: ' + e.message;
+    }
+}
+
+function stopTest() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        isRecording = false;
+        testBtn.textContent = '🎙 Hold to Record';
+        testBtn.classList.remove('recording');
+        status.textContent = 'Processing...';
+    }
+}
+
+async function processTest() {
+    const mimeType = mediaRecorder.mimeType || 'audio/webm';
+    const blob = new Blob(audioChunks, { type: mimeType });
+
+    // Playback
+    playback.src = URL.createObjectURL(blob);
+    playback.style.display = 'block';
+    playback.play();
+
+    // Transcribe
+    status.textContent = 'Transcribing...';
+    status.className = 'status active';
+
+    const formData = new FormData();
+    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    formData.append('audio', blob, `test.${ext}`);
+
+    try {
+        const response = await fetch('/api/transcribe', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        result.style.display = 'block';
+        transcription.textContent = data.text || data.error || '(no speech detected)';
+        status.textContent = 'Done';
+        status.className = 'status';
+
+    } catch (e) {
+        transcription.textContent = 'Error: ' + e.message;
+        result.style.display = 'block';
+        status.textContent = 'Failed';
+    }
+}
+</script>
+{% endblock %}

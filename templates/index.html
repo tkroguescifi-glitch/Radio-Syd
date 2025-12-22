@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Sessions // Radio SYD{% endblock %}
+
+{% block extra_styles %}
+.sessions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: border-color 0.2s;
+}
+
+.session-card:hover {
+    border-color: var(--accent);
+}
+
+.session-card a {
+    color: var(--text);
+    text-decoration: none;
+    flex: 1;
+}
+
+.session-id {
+    color: var(--accent);
+    font-size: 0.9rem;
+}
+
+.session-date {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+.session-stats {
+    display: flex;
+    gap: 1.5rem;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.stat-syd {
+    color: var(--syd);
+}
+
+.stat-subject {
+    color: var(--subject);
+}
+
+.btn-delete {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 0.3rem 0.6rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: inherit;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.btn-delete:hover {
+    opacity: 1;
+}
+
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.session-count {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.new-session {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    font-size: 0.8rem;
+    border: none;
+}
+
+.new-session:hover {
+    opacity: 0.9;
+}
+
+.help-text {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: var(--surface);
+    border-left: 2px solid var(--accent);
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+.help-text code {
+    background: var(--bg);
+    padding: 0.2rem 0.4rem;
+    color: var(--accent);
+}
+
+.start-session {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.start-session h2 {
+    margin-bottom: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.form-group textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 60px;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.form-group textarea::placeholder {
+    color: var(--text-dim);
+    opacity: 0.6;
+}
+
+.btn-start {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.btn-start:hover {
+    opacity: 0.9;
+}
+
+.alt-start {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.btn-alt {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-alt:hover {
+    border-color: var(--text-dim);
+    color: var(--text);
+}
+{% endblock %}
+
+{% block content %}
+<div class="start-session">
+    <h2>New Session</h2>
+    <form action="/interview/live" method="GET">
+        <div class="form-group">
+            <label for="topic">Review Context</label>
+            <textarea name="topic" id="topic" placeholder="What should SYD review? e.g., 'classification of your creative work' or 'inconsistencies in your recent submission'"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="instructions">Additional Instructions (optional)</label>
+            <textarea name="instructions" id="instructions" placeholder="Any specific angles or questions SYD should focus on..."></textarea>
+        </div>
+        <button type="submit" class="btn-start">Start Live Interview</button>
+    </form>
+    <div class="alt-start">
+        <form action="/start" method="POST" style="margin-top: 1rem;">
+            <input type="hidden" name="topic" id="topic-terminal">
+            <input type="hidden" name="instructions" id="instructions-terminal">
+            <button type="submit" class="btn-alt" onclick="copyToTerminalForm()">Open in Terminal instead</button>
+        </form>
+    </div>
+</div>
+
+<div class="header-row">
+    <h2>Sessions</h2>
+    <span class="session-count">{{ sessions|length }} recorded</span>
+</div>
+
+{% if sessions %}
+<div class="sessions">
+    {% for session in sessions %}
+    <div class="session-card">
+        <a href="/session/{{ session.id }}">
+            <div class="session-id">{{ session.id }}</div>
+            <div class="session-date">{{ session.date_formatted }}</div>
+        </a>
+        <div class="session-stats">
+            <span class="stat stat-syd">SYD: {{ session.syd_clips }}</span>
+            <span class="stat stat-subject">YOU: {{ session.subject_clips }}</span>
+            <span class="stat">{{ session.turn_count }} turns</span>
+        </div>
+        <form action="/delete/{{ session.id }}" method="POST" onsubmit="return confirm('Delete this session?');">
+            <button type="submit" class="btn-delete">DELETE</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    No sessions recorded yet.
+</div>
+
+<div class="help-text">
+    Click "Start Live Interview" above to begin recording in your browser.<br><br>
+    Or run from Terminal: <code>python interview.py --topic "your topic"</code>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyToTerminalForm() {
+    document.getElementById('topic-terminal').value = document.getElementById('topic').value;
+    document.getElementById('instructions-terminal').value = document.getElementById('instructions').value;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,809 @@
+{% extends "base.html" %}
+
+{% block title %}Live Interview // Radio SYD{% endblock %}
+
+{% block extra_styles %}
+.interview-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 200px);
+    min-height: 400px;
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+.session-info {
+    font-size: 0.85rem;
+}
+
+.session-id {
+    color: var(--accent);
+}
+
+.turn-count {
+    color: var(--text-dim);
+    margin-left: 1rem;
+}
+
+.transcript {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.turn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.turn-syd {
+    border-left: 3px solid var(--syd);
+}
+
+.turn-subject {
+    border-left: 3px solid var(--subject);
+}
+
+.turn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.speaker {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.speaker-syd {
+    color: var(--syd);
+}
+
+.speaker-subject {
+    color: var(--subject);
+}
+
+.turn-content {
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.controls {
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.control-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+}
+
+.btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.btn-record {
+    background: var(--surface);
+    border-color: var(--subject);
+    color: var(--subject);
+    min-width: 150px;
+}
+
+.btn-record.recording {
+    background: var(--subject);
+    color: var(--bg);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.btn-end {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.btn-end:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    opacity: 0.8;
+}
+
+.status {
+    flex: 1;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+.status.active {
+    color: var(--accent);
+}
+
+.status.error {
+    color: var(--danger);
+}
+
+.setup-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2rem;
+    max-width: 600px;
+    margin: 2rem auto;
+}
+
+.setup-form h2 {
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.form-group textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.form-group select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.form-group select option {
+    background: var(--bg);
+    color: var(--text);
+}
+
+.voice-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.voice-row select {
+    flex: 1;
+}
+
+.btn-preview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-preview:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-preview.playing {
+    border-color: var(--syd);
+    color: var(--syd);
+}
+
+.btn-start {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    width: 100%;
+}
+
+.back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+
+.recovery-prompt {
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.recovery-prompt p {
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.recovery-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.hidden {
+    display: none !important;
+}
+
+audio {
+    display: none;
+}
+
+.edit-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.edit-row textarea {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--subject);
+    color: var(--text);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: none;
+}
+
+.edit-row textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn-send {
+    background: var(--subject);
+    color: var(--bg);
+    border: none;
+    padding: 0.75rem 1.5rem;
+}
+{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">&larr; Back to Sessions</a>
+
+<!-- Recovery Prompt (hidden by default) -->
+<div id="recoveryPrompt" class="recovery-prompt hidden">
+    <p>An interrupted session was found. Resume where you left off?</p>
+    <div class="recovery-buttons">
+        <button class="btn" onclick="resumeSession()">Resume</button>
+        <button class="btn" onclick="startFresh()">Start New</button>
+    </div>
+</div>
+
+<!-- Setup Form (shown initially) -->
+<div id="setupForm" class="setup-form">
+    <h2>Start Live Interview</h2>
+    <div class="form-group">
+        <label for="topic">Review Context</label>
+        <textarea id="topic" placeholder="What should SYD review? e.g., 'classification of your creative work'">{{ topic }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="instructions">Additional Instructions (optional)</label>
+        <textarea id="instructions" placeholder="Any specific angles or questions...">{{ instructions }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="voice">SYD's Voice</label>
+        <div class="voice-row">
+            <select id="voice">
+                <option value="">Loading voices...</option>
+            </select>
+            <button type="button" class="btn-preview" id="previewBtn" onclick="previewVoice()">Preview</button>
+        </div>
+    </div>
+    <audio id="previewAudio"></audio>
+    <button class="btn btn-start" onclick="initSession()">Begin Session</button>
+</div>
+
+<!-- Interview Interface (hidden initially) -->
+<div id="interviewUI" class="interview-container hidden">
+    <div class="session-header">
+        <div class="session-info">
+            <span class="session-id" id="sessionId">--</span>
+            <span class="turn-count">Turn: <span id="turnCount">0</span></span>
+        </div>
+        <button class="btn btn-end" onclick="endSession()">End Session</button>
+    </div>
+
+    <div class="transcript" id="transcript">
+        <!-- Turns will be added here dynamically -->
+    </div>
+
+    <div class="controls">
+        <div class="control-row">
+            <button id="recordBtn" class="btn btn-record" onclick="toggleRecording()" disabled>
+                Record
+            </button>
+            <div class="status" id="status">Initializing...</div>
+        </div>
+        <div class="edit-row hidden" id="editRow">
+            <textarea id="editText" rows="2" placeholder="Edit your response..."></textarea>
+            <button id="sendBtn" class="btn btn-send" onclick="sendEditedText()">Send</button>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden audio player for TTS -->
+<audio id="audioPlayer"></audio>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// State
+let sessionId = null;
+let conversation = [];
+let turnCount = 0;
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+
+// DOM Elements
+const setupForm = document.getElementById('setupForm');
+const interviewUI = document.getElementById('interviewUI');
+const recoveryPrompt = document.getElementById('recoveryPrompt');
+const transcript = document.getElementById('transcript');
+const recordBtn = document.getElementById('recordBtn');
+const status = document.getElementById('status');
+const audioPlayer = document.getElementById('audioPlayer');
+
+// Check for recovery on load and load voices
+window.addEventListener('load', () => {
+    loadVoices();
+    checkRecovery();
+});
+
+async function loadVoices() {
+    try {
+        const response = await fetch('/api/voices');
+        const data = await response.json();
+        const select = document.getElementById('voice');
+        select.innerHTML = '';
+
+        for (const [value, label] of Object.entries(data.voices)) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            if (value === data.default) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+    } catch (e) {
+        console.error('Failed to load voices:', e);
+    }
+}
+
+function previewVoice() {
+    const voice = document.getElementById('voice').value;
+    const previewAudio = document.getElementById('previewAudio');
+    const previewBtn = document.getElementById('previewBtn');
+
+    if (!voice) return;
+
+    // Stop if already playing
+    if (!previewAudio.paused) {
+        previewAudio.pause();
+        previewAudio.currentTime = 0;
+        previewBtn.textContent = 'Preview';
+        previewBtn.classList.remove('playing');
+        return;
+    }
+
+    previewAudio.src = `/audio/previews/${voice}.wav`;
+    previewBtn.textContent = 'Stop';
+    previewBtn.classList.add('playing');
+
+    previewAudio.onended = () => {
+        previewBtn.textContent = 'Preview';
+        previewBtn.classList.remove('playing');
+    };
+
+    previewAudio.play().catch(e => {
+        console.error('Failed to play preview:', e);
+        previewBtn.textContent = 'Preview';
+        previewBtn.classList.remove('playing');
+    });
+}
+
+async function checkRecovery() {
+    const savedSessionId = localStorage.getItem('active_session_id');
+    if (!savedSessionId) return;
+
+    try {
+        const response = await fetch(`/api/session/${savedSessionId}/state`);
+        if (response.ok) {
+            const state = await response.json();
+            if (!state.is_complete) {
+                // Show recovery prompt
+                recoveryPrompt.classList.remove('hidden');
+                setupForm.classList.add('hidden');
+            } else {
+                localStorage.removeItem('active_session_id');
+            }
+        } else {
+            localStorage.removeItem('active_session_id');
+        }
+    } catch (e) {
+        localStorage.removeItem('active_session_id');
+    }
+}
+
+async function resumeSession() {
+    const savedSessionId = localStorage.getItem('active_session_id');
+    try {
+        const response = await fetch(`/api/session/${savedSessionId}/state`);
+        const state = await response.json();
+
+        sessionId = state.session_id;
+        conversation = state.conversation;
+        turnCount = state.turn_count;
+
+        // Show interview UI
+        recoveryPrompt.classList.add('hidden');
+        setupForm.classList.add('hidden');
+        interviewUI.classList.remove('hidden');
+
+        document.getElementById('sessionId').textContent = sessionId;
+        document.getElementById('turnCount').textContent = turnCount;
+
+        // Rebuild transcript
+        conversation.forEach(entry => {
+            addTurnToTranscript(
+                entry.role === 'assistant' ? 'SYD' : 'SUBJECT',
+                entry.content
+            );
+        });
+
+        setStatus('Session resumed. Ready to record.', 'active');
+        recordBtn.disabled = false;
+    } catch (e) {
+        setStatus('Failed to resume session', 'error');
+        startFresh();
+    }
+}
+
+function startFresh() {
+    localStorage.removeItem('active_session_id');
+    recoveryPrompt.classList.add('hidden');
+    setupForm.classList.remove('hidden');
+}
+
+async function initSession() {
+    const topic = document.getElementById('topic').value.trim();
+    const instructions = document.getElementById('instructions').value.trim();
+    const voice = document.getElementById('voice').value;
+
+    // Prevent double-click
+    const startBtn = document.querySelector('.btn-start');
+    if (startBtn.disabled) return;
+    startBtn.disabled = true;
+
+    setStatus('Starting session...', 'active');
+    setupForm.classList.add('hidden');
+    interviewUI.classList.remove('hidden');
+
+    try {
+        const response = await fetch('/api/session/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic, instructions, voice })
+        });
+
+        const data = await response.json();
+
+        sessionId = data.session_id;
+        turnCount = data.turn_count;
+        conversation = [{ role: 'assistant', content: data.syd_text }];
+
+        // Save to localStorage for recovery
+        localStorage.setItem('active_session_id', sessionId);
+
+        document.getElementById('sessionId').textContent = sessionId;
+        document.getElementById('turnCount').textContent = turnCount;
+
+        // Add SYD's opening to transcript
+        addTurnToTranscript('SYD', data.syd_text);
+
+        // Play audio
+        setStatus('Playing SYD...', 'active');
+        await playAudio(data.audio_url);
+
+        setStatus('Your turn. Click Record to respond.', 'active');
+        recordBtn.disabled = false;
+
+    } catch (e) {
+        setStatus('Failed to start session: ' + e.message, 'error');
+        setupForm.classList.remove('hidden');
+        interviewUI.classList.add('hidden');
+        document.querySelector('.btn-start').disabled = false;
+    }
+}
+
+function addTurnToTranscript(speaker, content) {
+    const turn = document.createElement('div');
+    turn.className = `turn turn-${speaker.toLowerCase()}`;
+    turn.innerHTML = `
+        <div class="turn-header">
+            <span class="speaker speaker-${speaker.toLowerCase()}">${speaker}</span>
+        </div>
+        <div class="turn-content">${content}</div>
+    `;
+    transcript.appendChild(turn);
+    transcript.scrollTop = transcript.scrollHeight;
+}
+
+function setStatus(message, type = '') {
+    status.textContent = message;
+    status.className = 'status' + (type ? ' ' + type : '');
+}
+
+async function playAudio(url) {
+    return new Promise((resolve, reject) => {
+        audioPlayer.src = url;
+        audioPlayer.onended = resolve;
+        audioPlayer.onerror = (e) => {
+            console.error('Audio error:', e);
+            resolve(); // Continue even if audio fails
+        };
+        audioPlayer.play().catch((e) => {
+            console.error('Audio play failed:', e);
+            // Safari may block autoplay - continue anyway
+            setStatus('Audio blocked by browser. Click to continue.', 'error');
+            resolve(); // Don't block the flow
+        });
+    });
+}
+
+async function toggleRecording() {
+    if (isRecording) {
+        stopRecording();
+    } else {
+        startRecording();
+    }
+}
+
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Find supported MIME type (Safari doesn't support webm)
+        const mimeTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/ogg',
+            ''  // fallback to browser default
+        ];
+
+        let options = {};
+        for (const mimeType of mimeTypes) {
+            if (mimeType === '' || MediaRecorder.isTypeSupported(mimeType)) {
+                if (mimeType) options.mimeType = mimeType;
+                break;
+            }
+        }
+
+        mediaRecorder = new MediaRecorder(stream, options);
+
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+            stream.getTracks().forEach(track => track.stop());
+            await processRecording();
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.textContent = 'Stop';
+        recordBtn.classList.add('recording');
+        setStatus('Recording... Click Stop when done.', 'active');
+
+    } catch (e) {
+        setStatus('Microphone access denied: ' + e.message, 'error');
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.textContent = 'Record';
+        recordBtn.classList.remove('recording');
+        recordBtn.disabled = true;
+        setStatus('Processing...', 'active');
+    }
+}
+
+async function processRecording() {
+    try {
+        // Create blob from chunks using the recorder's actual MIME type
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunks, { type: mimeType });
+        console.log('Recording MIME type:', mimeType, 'Size:', audioBlob.size);
+
+        // Send for transcription
+        setStatus('Transcribing...', 'active');
+        const formData = new FormData();
+        // Use correct extension based on MIME type
+        const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        formData.append('audio', audioBlob, `recording.${ext}`);
+        formData.append('session_id', sessionId);
+
+        const transcribeResponse = await fetch('/api/transcribe', {
+            method: 'POST',
+            body: formData
+        });
+
+        const transcribeData = await transcribeResponse.json();
+
+        if (!transcribeData.text) {
+            setStatus('No speech detected. Try again.', 'error');
+            recordBtn.disabled = false;
+            return;
+        }
+
+        // Show edit box with transcription
+        const editRow = document.getElementById('editRow');
+        const editText = document.getElementById('editText');
+        editText.value = transcribeData.text;
+        editRow.classList.remove('hidden');
+        editText.focus();
+        setStatus('Edit if needed, then click Send.', 'active')
+
+    } catch (e) {
+        setStatus('Error: ' + e.message, 'error');
+        recordBtn.disabled = false;
+    }
+}
+
+async function sendEditedText() {
+    const editText = document.getElementById('editText');
+    const editRow = document.getElementById('editRow');
+    const userText = editText.value.trim();
+
+    if (!userText) {
+        setStatus('Please enter some text.', 'error');
+        return;
+    }
+
+    // Hide edit box
+    editRow.classList.add('hidden');
+
+    // Add user response to transcript
+    addTurnToTranscript('SUBJECT', userText);
+    conversation.push({ role: 'user', content: userText });
+
+    try {
+        // Get SYD's response
+        setStatus('SYD is processing...', 'active');
+        const respondResponse = await fetch(`/api/session/${sessionId}/respond`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_text: userText })
+        });
+
+        const respondData = await respondResponse.json();
+
+        // Add SYD's response to transcript
+        addTurnToTranscript('SYD', respondData.syd_text);
+        conversation.push({ role: 'assistant', content: respondData.syd_text });
+        turnCount = respondData.turn_count;
+        document.getElementById('turnCount').textContent = turnCount;
+
+        // Play audio
+        setStatus('Playing SYD...', 'active');
+        await playAudio(respondData.audio_url);
+
+        // Check if complete
+        if (respondData.is_complete) {
+            setStatus('Session complete. SYD has concluded the review.', 'active');
+            recordBtn.disabled = true;
+            localStorage.removeItem('active_session_id');
+        } else {
+            setStatus('Your turn. Click Record to respond.', 'active');
+            recordBtn.disabled = false;
+        }
+
+    } catch (e) {
+        setStatus('Error: ' + e.message, 'error');
+        recordBtn.disabled = false;
+    }
+}
+
+async function endSession() {
+    if (!confirm('End this session?')) return;
+
+    try {
+        await fetch(`/api/session/${sessionId}/end`, { method: 'POST' });
+        localStorage.removeItem('active_session_id');
+        window.location.href = `/session/${sessionId}`;
+    } catch (e) {
+        setStatus('Failed to end session: ' + e.message, 'error');
+    }
+}
+</script>
+{% endblock %}

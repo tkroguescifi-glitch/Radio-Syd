@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.id }} // Radio SYD{% endblock %}
+
+{% block extra_styles %}
+.session-header {
+    margin-bottom: 2rem;
+}
+
+.session-title {
+    color: var(--accent);
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.session-meta {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+.back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.turn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+}
+
+.turn-syd {
+    border-left: 3px solid var(--syd);
+}
+
+.turn-subject {
+    border-left: 3px solid var(--subject);
+}
+
+.turn-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.speaker {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.speaker-syd {
+    color: var(--syd);
+}
+
+.speaker-subject {
+    color: var(--subject);
+}
+
+.turn-content {
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+.turn-audio {
+    margin-top: 1rem;
+}
+
+audio {
+    width: 100%;
+    height: 36px;
+    opacity: 0.8;
+}
+
+audio:hover {
+    opacity: 1;
+}
+
+.controls {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 1rem;
+}
+
+.btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-play-all {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+.btn-play-all:hover {
+    opacity: 0.9;
+    color: var(--bg);
+}
+
+.export-section {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.export-section h3 {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+}
+
+.transcript-raw {
+    background: var(--bg);
+    padding: 1rem;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    color: var(--text-dim);
+}
+
+.assembly-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.assembly-section h3 {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+}
+
+.assembly-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.gap-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+.gap-control input {
+    width: 80px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.gap-control input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn-assemble {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+.assembly-status {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+.assembly-status.success {
+    color: var(--accent);
+}
+
+.assembly-status.error {
+    color: var(--danger);
+}
+
+.episode-player {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.episode-player audio {
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.episode-player a {
+    color: var(--accent);
+    font-size: 0.85rem;
+}
+{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">&larr; All Sessions</a>
+
+<div class="session-header">
+    <div class="session-title">{{ session.id }}</div>
+    <div class="session-meta">{{ session.date_formatted }} &middot; {{ session.timeline|length }} exchanges</div>
+</div>
+
+<h2>Transcript</h2>
+
+<div class="timeline" id="timeline">
+    {% for turn in session.timeline %}
+    <div class="turn turn-{{ turn.speaker|lower }}">
+        <div class="turn-header">
+            <span class="speaker speaker-{{ turn.speaker|lower }}">{{ turn.speaker }}</span>
+        </div>
+        <div class="turn-content">{{ turn.content }}</div>
+        {% if turn.audio %}
+        <div class="turn-audio">
+            <audio controls preload="none" class="audio-player">
+                <source src="/audio/{{ turn.audio_type }}/{{ session.id }}/{{ turn.audio }}" type="audio/wav">
+            </audio>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div class="controls">
+    <button class="btn btn-play-all" onclick="playAll()">Play All</button>
+    <button class="btn" onclick="stopAll()">Stop</button>
+</div>
+
+<div class="assembly-section">
+    <h3>Episode Assembly</h3>
+    <div class="assembly-controls">
+        <div class="gap-control">
+            <label for="gapMs">Silence gap:</label>
+            <input type="number" id="gapMs" value="800" min="0" max="5000" step="100">
+            <span>ms</span>
+        </div>
+        <button class="btn btn-assemble" onclick="assembleEpisode()">Assemble Episode</button>
+        <span id="assemblyStatus" class="assembly-status"></span>
+    </div>
+    <div id="episodePlayer" class="episode-player" style="display: none;">
+        <audio controls id="episodeAudio"></audio>
+        <a id="episodeDownload" href="#" download>Download WAV</a>
+    </div>
+</div>
+
+<div class="export-section">
+    <h3>Raw Transcript</h3>
+    <div class="transcript-raw">{% for turn in session.timeline %}{{ turn.speaker }}: {{ turn.content }}
+
+{% endfor %}</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentAudioIndex = 0;
+let isPlaying = false;
+const audioPlayers = document.querySelectorAll('.audio-player');
+
+function playAll() {
+    if (audioPlayers.length === 0) return;
+    isPlaying = true;
+    currentAudioIndex = 0;
+    playNext();
+}
+
+function playNext() {
+    if (!isPlaying || currentAudioIndex >= audioPlayers.length) {
+        isPlaying = false;
+        return;
+    }
+
+    const player = audioPlayers[currentAudioIndex];
+    player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    player.onended = () => {
+        currentAudioIndex++;
+        setTimeout(playNext, 500);
+    };
+
+    player.play();
+}
+
+function stopAll() {
+    isPlaying = false;
+    audioPlayers.forEach(p => {
+        p.pause();
+        p.currentTime = 0;
+    });
+}
+
+async function assembleEpisode() {
+    const gapMs = parseInt(document.getElementById('gapMs').value) || 800;
+    const statusEl = document.getElementById('assemblyStatus');
+    const playerEl = document.getElementById('episodePlayer');
+
+    statusEl.textContent = 'Assembling...';
+    statusEl.className = 'assembly-status';
+
+    try {
+        const response = await fetch('/api/session/{{ session.id }}/assemble', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gap_ms: gapMs })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            statusEl.textContent = 'Assembly complete!';
+            statusEl.className = 'assembly-status success';
+
+            // Show player
+            const audioEl = document.getElementById('episodeAudio');
+            const downloadEl = document.getElementById('episodeDownload');
+
+            audioEl.src = data.episode_url;
+            downloadEl.href = data.episode_url;
+            downloadEl.download = '{{ session.id }}.wav';
+            playerEl.style.display = 'block';
+        } else {
+            statusEl.textContent = 'Error: ' + data.error;
+            statusEl.className = 'assembly-status error';
+        }
+    } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.className = 'assembly-status error';
+    }
+}
+</script>
+{% endblock %}
