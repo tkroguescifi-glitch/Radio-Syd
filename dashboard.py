@@ -27,35 +27,31 @@ from interview import (
     get_tts_client
 )
 
-# Available SYD voices (Google Cloud TTS)
+# Available SYD voices
 SYD_VOICES = {
-    # Neural2 (High quality, natural)
-    "en-US-Neural2-D": "US Neural2 - Neutral (Default)",
-    "en-US-Neural2-A": "US Neural2 - Deeper",
-    "en-US-Neural2-I": "US Neural2 - Authoritative",
-    "en-US-Neural2-J": "US Neural2 - Calm",
-    "en-GB-Neural2-B": "British Neural2 - Formal",
-    "en-GB-Neural2-D": "British Neural2 - Neutral",
-    # Wavenet (Slightly synthetic, institutional)
-    "en-US-Wavenet-A": "US Wavenet - A",
-    "en-US-Wavenet-B": "US Wavenet - B",
-    "en-US-Wavenet-D": "US Wavenet - D",
-    "en-US-Wavenet-I": "US Wavenet - I",
-    "en-US-Wavenet-J": "US Wavenet - J",
-    "en-GB-Wavenet-B": "British Wavenet - B",
-    "en-GB-Wavenet-D": "British Wavenet - D",
-    "en-GB-Wavenet-O": "British Wavenet - O",
-    # News (Broadcast, authoritative)
-    "en-US-News-N": "US News - Male",
-    "en-GB-News-J": "British News - J",
-    "en-GB-News-K": "British News - K",
-    "en-GB-News-L": "British News - L",
-    "en-GB-News-M": "British News - M",
-    # Afrikaans
-    "af-ZA-Standard-A": "Afrikaans - Female",
+    # OpenAI TTS (Best quality)
+    "openai:onyx": "OpenAI Onyx - Deep (Recommended)",
+    "openai:echo": "OpenAI Echo - Neutral",
+    "openai:fable": "OpenAI Fable - Expressive",
+    "openai:alloy": "OpenAI Alloy - Balanced",
+    "openai:nova": "OpenAI Nova - Warm",
+    "openai:shimmer": "OpenAI Shimmer - Clear",
+    # Google Neural2 (High quality, natural)
+    "en-US-Neural2-D": "Google US Neural2 - Neutral",
+    "en-US-Neural2-A": "Google US Neural2 - Deeper",
+    "en-US-Neural2-I": "Google US Neural2 - Authoritative",
+    "en-US-Neural2-J": "Google US Neural2 - Calm",
+    "en-GB-Neural2-B": "Google British Neural2 - Formal",
+    "en-GB-Neural2-D": "Google British Neural2 - Neutral",
+    # Google Wavenet
+    "en-US-Wavenet-D": "Google US Wavenet - D",
+    "en-GB-Wavenet-B": "Google British Wavenet - B",
+    # Google News (Broadcast)
+    "en-US-News-N": "Google US News - Male",
+    "en-GB-News-J": "Google British News - J",
 }
 
-DEFAULT_VOICE = os.getenv("GOOGLE_TTS_VOICE", "en-US-Neural2-D")
+DEFAULT_VOICE = os.getenv("SYD_VOICE", "openai:onyx")
 
 # ============================================================================
 # CONFIG
@@ -120,14 +116,55 @@ def strip_stage_directions(text: str) -> str:
 
 
 def text_to_speech_with_voice(text: str, output_path: Path, voice_name: str = None, robotic: bool = False) -> Path:
-    """Convert text to speech using Google Cloud TTS with specified voice."""
-    from google.cloud import texttospeech
-
+    """Convert text to speech using OpenAI or Google Cloud TTS."""
     # Strip any stage directions before TTS
     text = strip_stage_directions(text)
+    voice_name = voice_name or DEFAULT_VOICE
+
+    # Check if using OpenAI voice
+    if voice_name.startswith("openai:"):
+        return _openai_tts(text, output_path, voice_name.split(":")[1])
+
+    # Otherwise use Google Cloud TTS
+    return _google_tts(text, output_path, voice_name, robotic)
+
+
+def _openai_tts(text: str, output_path: Path, voice: str) -> Path:
+    """Generate speech using OpenAI TTS."""
+    from openai import OpenAI
+
+    client = OpenAI()
+
+    # Generate speech (returns MP3)
+    response = client.audio.speech.create(
+        model="tts-1-hd",
+        voice=voice,
+        speed=1.05,  # Subtle energy boost
+        input=text
+    )
+
+    # Save as MP3 first, then convert to WAV for consistency
+    mp3_path = output_path.with_suffix(".mp3")
+    with open(mp3_path, "wb") as f:
+        for chunk in response.iter_bytes():
+            f.write(chunk)
+
+    # Convert MP3 to WAV using ffmpeg
+    subprocess.run([
+        "/opt/homebrew/bin/ffmpeg", "-y", "-i", str(mp3_path),
+        "-ar", str(SAMPLE_RATE), "-ac", "1",
+        str(output_path)
+    ], capture_output=True)
+    mp3_path.unlink()  # Remove temp MP3
+
+    return output_path
+
+
+def _google_tts(text: str, output_path: Path, voice_name: str, robotic: bool = False) -> Path:
+    """Generate speech using Google Cloud TTS."""
+    from google.cloud import texttospeech
 
     client = get_tts_client()
-    voice_name = voice_name or DEFAULT_VOICE
 
     # Determine language code from voice name
     lang_code = "-".join(voice_name.split("-")[:2])
@@ -142,7 +179,7 @@ def text_to_speech_with_voice(text: str, output_path: Path, voice_name: str = No
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.LINEAR16,
         sample_rate_hertz=SAMPLE_RATE,
-        speaking_rate=1.05,  # Quicker, more energetic
+        speaking_rate=0.92,  # Measured, deliberate
         pitch=-1.5  # Subtle depth
     )
 
@@ -193,6 +230,21 @@ def assemble_episode(session_id: str, gap_ms: int = 800, ambiance_volume: float 
     segments = []
     gap_samples = int(SAMPLE_RATE * gap_ms / 1000)
     silence = np.zeros(gap_samples, dtype=np.float32)
+
+    # Add intro at the beginning
+    intro_file = AUDIO_INTROS_DIR / "syd_intro.wav"
+    if intro_file.exists():
+        intro_audio, intro_sr = sf.read(intro_file)
+        if intro_sr != SAMPLE_RATE:
+            from scipy import signal
+            num_samples = int(len(intro_audio) * SAMPLE_RATE / intro_sr)
+            intro_audio = signal.resample(intro_audio, num_samples)
+        # Convert to mono if stereo
+        if len(intro_audio.shape) > 1:
+            intro_audio = intro_audio.mean(axis=1)
+        segments.append(intro_audio.astype(np.float32))
+        # Add gap after intro before SYD speaks
+        segments.append(np.zeros(int(SAMPLE_RATE * 1.5), dtype=np.float32))  # 1.5s gap
 
     for i, syd_file in enumerate(syd_files):
         # Add SYD's audio
@@ -519,9 +571,9 @@ def load_session_state(session_id: str) -> dict | None:
 @app.route("/interview/live")
 def interview_live():
     """Live interview page."""
-    topic = request.args.get("topic", "")
-    instructions = request.args.get("instructions", "")
-    return render_template("interview_live.html", topic=topic, instructions=instructions)
+    guest_name = request.args.get("guest_name", "")
+    focus_work = request.args.get("focus_work", "")
+    return render_template("interview_live.html", guest_name=guest_name, focus_work=focus_work)
 
 
 @app.route("/mic-test")
@@ -534,8 +586,8 @@ def mic_test():
 def api_create_session():
     """Create a new interview session and generate SYD's opening."""
     data = request.json or {}
-    topic = data.get("topic", "").strip()
-    instructions = data.get("instructions", "").strip()
+    guest_name = data.get("guest_name", "").strip()
+    context = data.get("context", "").strip()
     voice = data.get("voice", DEFAULT_VOICE)
 
     # Validate voice
@@ -547,11 +599,8 @@ def api_create_session():
 
     # Load and customize system prompt
     system_prompt = load_system_prompt()
-    if topic:
-        context = topic
-        if instructions:
-            context += f". Additional focus: {instructions}"
-        system_prompt += f"\n\nREVIEW CONTEXT:\nThis session concerns: {context}"
+    if context:
+        system_prompt += f"\n\nINTERVIEW CONTEXT:\n{context}"
 
     # Generate SYD's opening (need initial user message to prompt Claude)
     conversation = [{"role": "user", "content": "Begin the interview."}]

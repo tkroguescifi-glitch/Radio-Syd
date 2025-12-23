@@ -449,14 +449,27 @@ audio {
 <!-- Setup Form (shown initially) -->
 <div id="setupForm" class="setup-form">
     <h2>Start Live Interview</h2>
+
     <div class="form-group">
-        <label for="topic">Review Context</label>
-        <textarea id="topic" placeholder="What should SYD review? e.g., 'classification of your creative work'">{{ topic }}</textarea>
+        <label for="guestName">Interviewee Name</label>
+        <textarea id="guestName" rows="1" placeholder="e.g., TK">{{ guest_name }}</textarea>
     </div>
+
     <div class="form-group">
-        <label for="instructions">Additional Instructions (optional)</label>
-        <textarea id="instructions" placeholder="Any specific angles or questions...">{{ instructions }}</textarea>
+        <label for="focusWork">1. Focus & Relevance</label>
+        <textarea id="focusWork" placeholder="Which piece of work should this conversation centre on, and why does it still matter to you?">{{ focus_work }}</textarea>
     </div>
+
+    <div class="form-group">
+        <label for="unresolvedPressure">2. Unresolved Pressure (optional)</label>
+        <textarea id="unresolvedPressure" placeholder="What part of this work still feels unfinished or unresolved to you?"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="boundaries">3. Boundaries (optional)</label>
+        <textarea id="boundaries" placeholder="Is there anything you'd prefer not to discuss, or anything you want handled carefully?"></textarea>
+    </div>
+
     <div class="form-group">
         <label for="voice">SYD's Voice</label>
         <div class="voice-row">
@@ -469,8 +482,8 @@ audio {
     <audio id="previewAudio"></audio>
     <div class="form-group checkbox-group">
         <label>
-            <input type="checkbox" id="playIntro" checked>
-            Play show intro ("You are receiving a transmission...")
+            <input type="checkbox" id="playIntro">
+            Play show intro (added in post-production)
         </label>
     </div>
     <button class="btn btn-start" onclick="initSession()">Begin Session</button>
@@ -509,7 +522,7 @@ audio {
             <button id="sendBtn" class="btn btn-send" onclick="sendEditedText()">Send</button>
         </div>
         <div class="text-input-row" id="textInputRow">
-            <textarea id="textInput" rows="2" placeholder="Type your response (for testing)..."></textarea>
+            <textarea id="textInput" rows="2" placeholder="Type your response (for testing)..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendTextInput();}"></textarea>
             <button class="btn btn-send" onclick="sendTextInput()">Send Text</button>
         </div>
     </div>
@@ -601,9 +614,7 @@ async function playIntroSFX() {
 // Start ambient background sound (server hum/fan)
 function startAmbient() {
     const ambient = sfxList.find(s =>
-        s.name.toLowerCase().includes('hum') ||
-        s.name.toLowerCase().includes('fan') ||
-        s.name.toLowerCase().includes('server')
+        s.name.toLowerCase().includes('server-room')
     );
     if (ambient) {
         ambientPlayer.src = ambient.url;
@@ -654,7 +665,7 @@ function stopInterference() {
     }
 }
 
-// Play show intro (static + "You are receiving a transmission...")
+// Play show intro (static + intro + dial tone)
 async function playShowIntro() {
     // First, play 2 seconds of static for atmosphere
     const staticSfx = sfxList.find(s => s.name.toLowerCase().includes('static'));
@@ -673,8 +684,8 @@ async function playShowIntro() {
         });
     }
 
-    // Then play the intro audio
-    return new Promise((resolve) => {
+    // Play the intro audio
+    await new Promise((resolve) => {
         audioPlayer.src = '/audio/intros/syd_intro.wav';
         audioPlayer.onended = resolve;
         audioPlayer.onerror = () => {
@@ -686,6 +697,20 @@ async function playShowIntro() {
             resolve();
         });
     });
+
+    // Play short dial tone after intro
+    const dialTone = sfxList.find(s => s.name.toLowerCase().includes('dial_tone_short'));
+    if (dialTone) {
+        await new Promise((resolve) => {
+            sfxPlayer.src = dialTone.url;
+            sfxPlayer.volume = 0.6;
+            sfxPlayer.onended = () => {
+                sfxPlayer.volume = 1.0;
+                resolve();
+            };
+            sfxPlayer.play().catch(() => resolve());
+        });
+    }
 }
 
 // Update usage display
@@ -827,8 +852,10 @@ function startFresh() {
 }
 
 async function initSession() {
-    const topic = document.getElementById('topic').value.trim();
-    const instructions = document.getElementById('instructions').value.trim();
+    const guestName = document.getElementById('guestName').value.trim();
+    const focusWork = document.getElementById('focusWork').value.trim();
+    const unresolvedPressure = document.getElementById('unresolvedPressure').value.trim();
+    const boundaries = document.getElementById('boundaries').value.trim();
     const voice = document.getElementById('voice').value;
 
     // Prevent double-click
@@ -840,11 +867,30 @@ async function initSession() {
     setupForm.classList.add('hidden');
     interviewUI.classList.remove('hidden');
 
+    // Build structured context for SYD
+    let context = '';
+    if (guestName) {
+        context += `INTERVIEWEE NAME: ${guestName}\n\n`;
+    }
+    if (focusWork) {
+        context += `FOCUS & RELEVANCE:\n${focusWork}\n\n`;
+    }
+    if (unresolvedPressure) {
+        context += `UNRESOLVED PRESSURE:\n${unresolvedPressure}\n\n`;
+    }
+    if (boundaries) {
+        context += `BOUNDARIES (respect absolutely):\n${boundaries}\n\n`;
+    }
+
     try {
         const response = await fetch('/api/session/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic, instructions, voice })
+            body: JSON.stringify({
+                guest_name: guestName,
+                context: context.trim(),
+                voice: voice
+            })
         });
 
         const data = await response.json();
