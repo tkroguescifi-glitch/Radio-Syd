@@ -337,9 +337,104 @@ audio {
     border: none;
     padding: 0.75rem 1.5rem;
 }
+
+.sfx-panel {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.5rem;
+}
+
+.sfx-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.sfx-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-sfx {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-sfx:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-sfx.playing {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+.text-input-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border);
+}
+
+.text-input-row textarea {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: none;
+}
+
+.text-input-row textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.usage-display {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    z-index: 100;
+}
+
+.usage-display .tokens {
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.usage-display .cost {
+    color: var(--subject);
+    margin-left: 0.5rem;
+}
 {% endblock %}
 
 {% block content %}
+<!-- API Usage Display -->
+<div class="usage-display" id="usageDisplay">
+    Tokens: <span class="tokens" id="tokenCount">0</span>
+    <span class="cost" id="costDisplay">$0.00</span>
+</div>
+
 <a href="/" class="back-link">&larr; Back to Sessions</a>
 
 <!-- Recovery Prompt (hidden by default) -->
@@ -372,6 +467,12 @@ audio {
         </div>
     </div>
     <audio id="previewAudio"></audio>
+    <div class="form-group checkbox-group">
+        <label>
+            <input type="checkbox" id="playIntro" checked>
+            Play show intro ("You are receiving a transmission...")
+        </label>
+    </div>
     <button class="btn btn-start" onclick="initSession()">Begin Session</button>
 </div>
 
@@ -383,6 +484,13 @@ audio {
             <span class="turn-count">Turn: <span id="turnCount">0</span></span>
         </div>
         <button class="btn btn-end" onclick="endSession()">End Session</button>
+    </div>
+
+    <div class="sfx-panel" id="sfxPanel">
+        <span class="sfx-label">SFX:</span>
+        <div class="sfx-buttons" id="sfxButtons">
+            <!-- SFX buttons loaded dynamically -->
+        </div>
     </div>
 
     <div class="transcript" id="transcript">
@@ -400,11 +508,17 @@ audio {
             <textarea id="editText" rows="2" placeholder="Edit your response..."></textarea>
             <button id="sendBtn" class="btn btn-send" onclick="sendEditedText()">Send</button>
         </div>
+        <div class="text-input-row" id="textInputRow">
+            <textarea id="textInput" rows="2" placeholder="Type your response (for testing)..."></textarea>
+            <button class="btn btn-send" onclick="sendTextInput()">Send Text</button>
+        </div>
     </div>
 </div>
 
 <!-- Hidden audio player for TTS -->
 <audio id="audioPlayer"></audio>
+<audio id="sfxPlayer"></audio>
+<audio id="ambientPlayer" loop></audio>
 {% endblock %}
 
 {% block scripts %}
@@ -416,6 +530,7 @@ let turnCount = 0;
 let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
+let sfxList = [];
 
 // DOM Elements
 const setupForm = document.getElementById('setupForm');
@@ -425,11 +540,174 @@ const transcript = document.getElementById('transcript');
 const recordBtn = document.getElementById('recordBtn');
 const status = document.getElementById('status');
 const audioPlayer = document.getElementById('audioPlayer');
+const sfxPlayer = document.getElementById('sfxPlayer');
+const ambientPlayer = document.getElementById('ambientPlayer');
+
+// Load SFX on page load
+async function loadSFX() {
+    try {
+        const response = await fetch('/api/sfx');
+        const data = await response.json();
+        sfxList = data.sfx;
+        renderSFXButtons();
+    } catch (e) {
+        console.error('Failed to load SFX:', e);
+    }
+}
+
+function renderSFXButtons() {
+    const container = document.getElementById('sfxButtons');
+    if (sfxList.length === 0) {
+        container.innerHTML = '<span style="color:var(--text-dim);font-size:0.75rem;">No SFX files in audio/sfx/</span>';
+        return;
+    }
+    container.innerHTML = sfxList.map(sfx =>
+        `<button class="btn-sfx" onclick="playSFX('${sfx.url}', this)">${sfx.name}</button>`
+    ).join('');
+}
+
+function playSFX(url, btn) {
+    // Stop if already playing
+    if (!sfxPlayer.paused) {
+        sfxPlayer.pause();
+        sfxPlayer.currentTime = 0;
+        document.querySelectorAll('.btn-sfx').forEach(b => b.classList.remove('playing'));
+        return;
+    }
+
+    sfxPlayer.src = url;
+    document.querySelectorAll('.btn-sfx').forEach(b => b.classList.remove('playing'));
+    if (btn) btn.classList.add('playing');
+
+    sfxPlayer.onended = () => {
+        document.querySelectorAll('.btn-sfx').forEach(b => b.classList.remove('playing'));
+    };
+
+    sfxPlayer.play().catch(e => console.error('SFX play failed:', e));
+}
+
+// Auto-play phone ring if available
+async function playIntroSFX() {
+    const phoneRing = sfxList.find(s => s.name.toLowerCase().includes('ring') || s.name.toLowerCase().includes('phone'));
+    if (phoneRing) {
+        return new Promise((resolve) => {
+            sfxPlayer.src = phoneRing.url;
+            sfxPlayer.onended = resolve;
+            sfxPlayer.play().catch(() => resolve());
+        });
+    }
+}
+
+// Start ambient background sound (server hum/fan)
+function startAmbient() {
+    const ambient = sfxList.find(s =>
+        s.name.toLowerCase().includes('hum') ||
+        s.name.toLowerCase().includes('fan') ||
+        s.name.toLowerCase().includes('server')
+    );
+    if (ambient) {
+        ambientPlayer.src = ambient.url;
+        ambientPlayer.volume = 0.25; // Server room ambiance
+        ambientPlayer.play().catch(e => console.log('Ambient blocked:', e));
+    }
+}
+
+function stopAmbient() {
+    ambientPlayer.pause();
+    ambientPlayer.currentTime = 0;
+}
+
+// Random interference sounds
+let interferenceInterval = null;
+
+function startInterference() {
+    // Play random interference every 15-45 seconds
+    const playRandomInterference = () => {
+        const interferenceSounds = sfxList.filter(s =>
+            s.name.toLowerCase().includes('static') ||
+            s.name.toLowerCase().includes('blip') ||
+            s.name.toLowerCase().includes('beep') ||
+            s.name.toLowerCase().includes('burst') ||
+            s.name.toLowerCase().includes('hum-45')
+        );
+
+        if (interferenceSounds.length > 0 && Math.random() > 0.3) {
+            const sound = interferenceSounds[Math.floor(Math.random() * interferenceSounds.length)];
+            const interferenceAudio = new Audio(sound.url);
+            interferenceAudio.volume = 0.1 + Math.random() * 0.15; // 10-25% volume
+            interferenceAudio.play().catch(() => {});
+        }
+
+        // Schedule next interference (15-45 seconds)
+        const nextDelay = 15000 + Math.random() * 30000;
+        interferenceInterval = setTimeout(playRandomInterference, nextDelay);
+    };
+
+    // Start after initial delay
+    interferenceInterval = setTimeout(playRandomInterference, 10000);
+}
+
+function stopInterference() {
+    if (interferenceInterval) {
+        clearTimeout(interferenceInterval);
+        interferenceInterval = null;
+    }
+}
+
+// Play show intro (static + "You are receiving a transmission...")
+async function playShowIntro() {
+    // First, play 2 seconds of static for atmosphere
+    const staticSfx = sfxList.find(s => s.name.toLowerCase().includes('static'));
+    if (staticSfx) {
+        await new Promise((resolve) => {
+            sfxPlayer.src = staticSfx.url;
+            sfxPlayer.volume = 0.5;
+            sfxPlayer.play().catch(() => resolve());
+            // Only play 2 seconds of static
+            setTimeout(() => {
+                sfxPlayer.pause();
+                sfxPlayer.currentTime = 0;
+                sfxPlayer.volume = 1.0;
+                resolve();
+            }, 2000);
+        });
+    }
+
+    // Then play the intro audio
+    return new Promise((resolve) => {
+        audioPlayer.src = '/audio/intros/syd_intro.wav';
+        audioPlayer.onended = resolve;
+        audioPlayer.onerror = () => {
+            console.error('Intro audio not found');
+            resolve();
+        };
+        audioPlayer.play().catch((e) => {
+            console.error('Intro play failed:', e);
+            resolve();
+        });
+    });
+}
+
+// Update usage display
+async function updateUsage() {
+    try {
+        const response = await fetch('/api/usage');
+        const data = await response.json();
+        document.getElementById('tokenCount').textContent = data.total_tokens.toLocaleString();
+        document.getElementById('costDisplay').textContent = '$' + data.estimated_cost_usd.toFixed(4);
+    } catch (e) {
+        console.error('Failed to fetch usage:', e);
+    }
+}
 
 // Check for recovery on load and load voices
 window.addEventListener('load', () => {
     loadVoices();
+    loadSFX();
     checkRecovery();
+    updateUsage();
+    // Update usage every 10 seconds
+    setInterval(updateUsage, 10000);
 });
 
 async function loadVoices() {
@@ -581,15 +859,33 @@ async function initSession() {
         document.getElementById('sessionId').textContent = sessionId;
         document.getElementById('turnCount').textContent = turnCount;
 
+        // Start ambient background sound and random interference
+        startAmbient();
+        startInterference();
+
+        // Play show intro if checkbox is checked
+        const playIntroCheckbox = document.getElementById('playIntro');
+        if (playIntroCheckbox && playIntroCheckbox.checked) {
+            setStatus('Incoming transmission...', 'active');
+            await playShowIntro();
+        }
+
         // Add SYD's opening to transcript
         addTurnToTranscript('SYD', data.syd_text);
 
-        // Play audio
+        // Play intro SFX (phone ring) if available
+        setStatus('Calling...', 'active');
+        await playIntroSFX();
+
+        // Play SYD's audio
         setStatus('Playing SYD...', 'active');
         await playAudio(data.audio_url);
 
         setStatus('Your turn. Click Record to respond.', 'active');
         recordBtn.disabled = false;
+
+        // Update usage display
+        updateUsage();
 
     } catch (e) {
         setStatus('Failed to start session: ' + e.message, 'error');
@@ -740,6 +1036,19 @@ async function processRecording() {
     }
 }
 
+async function sendTextInput() {
+    const textInput = document.getElementById('textInput');
+    const userText = textInput.value.trim();
+
+    if (!userText) {
+        setStatus('Please enter some text.', 'error');
+        return;
+    }
+
+    textInput.value = '';
+    await sendUserText(userText);
+}
+
 async function sendEditedText() {
     const editText = document.getElementById('editText');
     const editRow = document.getElementById('editRow');
@@ -752,7 +1061,10 @@ async function sendEditedText() {
 
     // Hide edit box
     editRow.classList.add('hidden');
+    await sendUserText(userText);
+}
 
+async function sendUserText(userText) {
     // Add user response to transcript
     addTurnToTranscript('SUBJECT', userText);
     conversation.push({ role: 'user', content: userText });
@@ -778,8 +1090,13 @@ async function sendEditedText() {
         setStatus('Playing SYD...', 'active');
         await playAudio(respondData.audio_url);
 
+        // Update usage display
+        updateUsage();
+
         // Check if complete
         if (respondData.is_complete) {
+            stopAmbient();
+            stopInterference();
             setStatus('Session complete. SYD has concluded the review.', 'active');
             recordBtn.disabled = true;
             localStorage.removeItem('active_session_id');
@@ -796,6 +1113,10 @@ async function sendEditedText() {
 
 async function endSession() {
     if (!confirm('End this session?')) return;
+
+    // Stop ambient sound and interference
+    stopAmbient();
+    stopInterference();
 
     try {
         await fetch(`/api/session/${sessionId}/end`, { method: 'POST' });

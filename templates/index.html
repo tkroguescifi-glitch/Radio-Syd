@@ -199,6 +199,49 @@
     border-color: var(--text-dim);
     color: var(--text);
 }
+
+.sfx-test {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.sfx-test h2 {
+    margin-bottom: 1rem;
+}
+
+.sfx-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-sfx {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-sfx:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-sfx.playing {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+}
+
+.sfx-empty {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
 {% endblock %}
 
 {% block content %}
@@ -222,6 +265,14 @@
             <button type="submit" class="btn-alt" onclick="copyToTerminalForm()">Open in Terminal instead</button>
         </form>
     </div>
+</div>
+
+<div class="sfx-test">
+    <h2>Test Sound Effects</h2>
+    <div class="sfx-buttons" id="sfxButtons">
+        <span class="sfx-empty">Loading...</span>
+    </div>
+    <audio id="sfxPlayer"></audio>
 </div>
 
 <div class="header-row">
@@ -266,5 +317,54 @@ function copyToTerminalForm() {
     document.getElementById('topic-terminal').value = document.getElementById('topic').value;
     document.getElementById('instructions-terminal').value = document.getElementById('instructions').value;
 }
+
+// SFX Test
+const sfxPlayer = document.getElementById('sfxPlayer');
+let sfxList = [];
+
+async function loadSFX() {
+    try {
+        const response = await fetch('/api/sfx');
+        const data = await response.json();
+        sfxList = data.sfx;
+        renderSFXButtons();
+    } catch (e) {
+        document.getElementById('sfxButtons').innerHTML = '<span class="sfx-empty">Failed to load SFX</span>';
+    }
+}
+
+function renderSFXButtons() {
+    const container = document.getElementById('sfxButtons');
+    if (sfxList.length === 0) {
+        container.innerHTML = '<span class="sfx-empty">No SFX files in audio/sfx/</span>';
+        return;
+    }
+    container.innerHTML = sfxList.map(sfx =>
+        `<button class="btn-sfx" onclick="playSFX('${sfx.url}', this)">${sfx.name}</button>`
+    ).join('');
+}
+
+function playSFX(url, btn) {
+    // Stop if already playing
+    if (!sfxPlayer.paused && sfxPlayer.src.includes(url.split('/').pop())) {
+        sfxPlayer.pause();
+        sfxPlayer.currentTime = 0;
+        document.querySelectorAll('.btn-sfx').forEach(b => b.classList.remove('playing'));
+        return;
+    }
+
+    sfxPlayer.src = url;
+    document.querySelectorAll('.btn-sfx').forEach(b => b.classList.remove('playing'));
+    if (btn) btn.classList.add('playing');
+
+    sfxPlayer.onended = () => {
+        document.querySelectorAll('.btn-sfx').forEach(b => b.classList.remove('playing'));
+    };
+
+    sfxPlayer.play().catch(e => console.error('SFX play failed:', e));
+}
+
+// Load SFX on page load
+window.addEventListener('load', loadSFX);
 </script>
 {% endblock %}

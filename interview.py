@@ -99,12 +99,31 @@ def generate_syd_response(conversation: list[dict], system_prompt: str) -> str:
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=100,  # Keep SYD punchy - no monologues
+        max_tokens=120,  # Punchy but room for mysterious asides
         system=system_prompt,
         messages=conversation
     )
 
     return response.content[0].text.strip()
+
+
+def generate_syd_response_with_usage(conversation: list[dict], system_prompt: str) -> tuple[str, dict]:
+    """Generate SYD's next line and return token usage."""
+    client = get_anthropic_client()
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=120,
+        system=system_prompt,
+        messages=conversation
+    )
+
+    usage = {
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens
+    }
+
+    return response.content[0].text.strip(), usage
 
 
 def text_to_speech(text: str, output_path: Path) -> Path:
@@ -123,8 +142,8 @@ def text_to_speech(text: str, output_path: Path) -> Path:
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.LINEAR16,
         sample_rate_hertz=SAMPLE_RATE,
-        speaking_rate=0.9,  # Slightly slower for procedural tone
-        pitch=-2.0  # Slightly lower pitch
+        speaking_rate=1.05,  # Quicker, more energetic
+        pitch=-1.5  # Subtle depth
     )
 
     response = client.synthesize_speech(

@@ -18,6 +18,7 @@ from flask import Flask, render_template, send_from_directory, abort, request, r
 # Import interview functions
 from interview import (
     generate_syd_response,
+    generate_syd_response_with_usage,
     transcribe_audio,
     load_system_prompt,
     save_session,
@@ -65,6 +66,8 @@ SCRIPTS_DIR = BASE_DIR / "scripts"
 AUDIO_TTS_DIR = BASE_DIR / "audio" / "tts"
 AUDIO_REC_DIR = BASE_DIR / "audio" / "recordings"
 AUDIO_EPISODES_DIR = BASE_DIR / "audio" / "episodes"
+AUDIO_SFX_DIR = BASE_DIR / "audio" / "sfx"
+AUDIO_INTROS_DIR = BASE_DIR / "audio" / "intros"
 
 app = Flask(__name__)
 
@@ -139,8 +142,8 @@ def text_to_speech_with_voice(text: str, output_path: Path, voice_name: str = No
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.LINEAR16,
         sample_rate_hertz=SAMPLE_RATE,
-        speaking_rate=1.15,  # Upbeat radio host energy
-        pitch=-1.0  # Slight depth, but natural
+        speaking_rate=1.05,  # Quicker, more energetic
+        pitch=-1.5  # Subtle depth
     )
 
     response = client.synthesize_speech(
@@ -162,13 +165,14 @@ def text_to_speech_with_voice(text: str, output_path: Path, voice_name: str = No
     return output_path
 
 
-def assemble_episode(session_id: str, gap_ms: int = 800) -> Path:
+def assemble_episode(session_id: str, gap_ms: int = 800, ambiance_volume: float = 0.25) -> Path:
     """
     Assemble session audio files into a single episode.
 
     Args:
         session_id: The session to assemble
         gap_ms: Silence gap between turns in milliseconds
+        ambiance_volume: Volume level for server room ambiance (0.0-1.0)
 
     Returns:
         Path to the assembled episode file
@@ -216,6 +220,36 @@ def assemble_episode(session_id: str, gap_ms: int = 800) -> Path:
 
     # Concatenate all segments
     episode_audio = np.concatenate(segments)
+
+    # Mix in server room ambiance
+    ambiance_file = AUDIO_SFX_DIR / "server-room-ambience.wav"
+    if ambiance_file.exists() and ambiance_volume > 0:
+        ambiance_audio, amb_sr = sf.read(ambiance_file)
+
+        # Resample if needed
+        if amb_sr != SAMPLE_RATE:
+            from scipy import signal
+            num_samples = int(len(ambiance_audio) * SAMPLE_RATE / amb_sr)
+            ambiance_audio = signal.resample(ambiance_audio, num_samples)
+
+        # Convert to mono if stereo
+        if len(ambiance_audio.shape) > 1:
+            ambiance_audio = ambiance_audio.mean(axis=1)
+
+        ambiance_audio = ambiance_audio.astype(np.float32)
+
+        # Loop ambiance to match episode length
+        episode_len = len(episode_audio)
+        ambiance_len = len(ambiance_audio)
+        if ambiance_len < episode_len:
+            # Tile/loop the ambiance
+            repeats = (episode_len // ambiance_len) + 1
+            ambiance_audio = np.tile(ambiance_audio, repeats)[:episode_len]
+        else:
+            ambiance_audio = ambiance_audio[:episode_len]
+
+        # Mix ambiance at specified volume
+        episode_audio = episode_audio + (ambiance_audio * ambiance_volume)
 
     # Normalize to prevent clipping
     max_val = np.abs(episode_audio).max()
@@ -452,6 +486,13 @@ def delete_session(session_id):
 # In-memory session state (for active sessions)
 _active_sessions = {}
 
+# Global API usage tracking
+_api_usage = {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "total_requests": 0
+}
+
 
 def get_session_state_path(session_id: str) -> Path:
     """Get path to session state file."""
@@ -514,7 +555,12 @@ def api_create_session():
 
     # Generate SYD's opening (need initial user message to prompt Claude)
     conversation = [{"role": "user", "content": "Begin the interview."}]
-    syd_text = generate_syd_response(conversation, system_prompt)
+    syd_text, usage = generate_syd_response_with_usage(conversation, system_prompt)
+
+    # Track API usage
+    _api_usage["total_input_tokens"] += usage["input_tokens"]
+    _api_usage["total_output_tokens"] += usage["output_tokens"]
+    _api_usage["total_requests"] += 1
 
     # Generate TTS with selected voice
     tts_dir = AUDIO_TTS_DIR / session_id
@@ -561,9 +607,14 @@ def api_session_respond(session_id):
     state["conversation"].append({"role": "user", "content": user_text})
 
     # Generate SYD's response
-    syd_text = generate_syd_response(state["conversation"], state["system_prompt"])
+    syd_text, usage = generate_syd_response_with_usage(state["conversation"], state["system_prompt"])
     state["conversation"].append({"role": "assistant", "content": syd_text})
     state["turn_count"] += 1
+
+    # Track API usage
+    _api_usage["total_input_tokens"] += usage["input_tokens"]
+    _api_usage["total_output_tokens"] += usage["output_tokens"]
+    _api_usage["total_requests"] += 1
 
     # Check if session is complete (SYD concludes the review)
     is_complete = "concludes" in syd_text.lower() and "review" in syd_text.lower()
@@ -758,6 +809,57 @@ def serve_voice_preview(filename):
     if not previews_dir.exists():
         abort(404)
     return send_from_directory(previews_dir, filename)
+
+
+@app.route("/audio/sfx/<filename>")
+def serve_sfx(filename):
+    """Serve sound effect files."""
+    if not AUDIO_SFX_DIR.exists():
+        abort(404)
+    return send_from_directory(AUDIO_SFX_DIR, filename)
+
+
+@app.route("/audio/intros/<filename>")
+def serve_intro(filename):
+    """Serve intro audio files."""
+    if not AUDIO_INTROS_DIR.exists():
+        abort(404)
+    return send_from_directory(AUDIO_INTROS_DIR, filename)
+
+
+@app.route("/api/sfx", methods=["GET"])
+def api_list_sfx():
+    """List available sound effects."""
+    sfx = []
+    if AUDIO_SFX_DIR.exists():
+        for f in AUDIO_SFX_DIR.glob("*.wav"):
+            sfx.append({
+                "name": f.stem,
+                "url": f"/audio/sfx/{f.name}"
+            })
+        for f in AUDIO_SFX_DIR.glob("*.mp3"):
+            sfx.append({
+                "name": f.stem,
+                "url": f"/audio/sfx/{f.name}"
+            })
+    return jsonify({"sfx": sfx})
+
+
+@app.route("/api/usage", methods=["GET"])
+def api_get_usage():
+    """Get API usage statistics."""
+    # Calculate estimated cost (Claude Sonnet pricing: $3/MTok input, $15/MTok output)
+    input_cost = (_api_usage["total_input_tokens"] / 1_000_000) * 3.0
+    output_cost = (_api_usage["total_output_tokens"] / 1_000_000) * 15.0
+    total_cost = input_cost + output_cost
+
+    return jsonify({
+        "input_tokens": _api_usage["total_input_tokens"],
+        "output_tokens": _api_usage["total_output_tokens"],
+        "total_tokens": _api_usage["total_input_tokens"] + _api_usage["total_output_tokens"],
+        "requests": _api_usage["total_requests"],
+        "estimated_cost_usd": round(total_cost, 4)
+    })
 
 
 # ============================================================================
