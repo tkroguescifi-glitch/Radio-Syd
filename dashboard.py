@@ -115,10 +115,31 @@ def strip_stage_directions(text: str) -> str:
     return cleaned
 
 
+# Pronunciation fixes for Afrikaans and other non-English words
+PRONUNCIATION_FIXES = {
+    "Sluip-Sluip": "Slape-Slape",
+    "Sluip Sluip": "Slape Slape",
+    "Die Rubriek": "Dee Roo-breek",
+    "Node-237": "Node two three seven",
+    "Node 237": "Node two three seven",
+}
+
+
+def fix_pronunciation(text: str) -> str:
+    """Replace words with phonetic equivalents for better TTS pronunciation."""
+    import re
+    for word, phonetic in PRONUNCIATION_FIXES.items():
+        # Case-insensitive replacement
+        text = re.sub(re.escape(word), phonetic, text, flags=re.IGNORECASE)
+    return text
+
+
 def text_to_speech_with_voice(text: str, output_path: Path, voice_name: str = None, robotic: bool = False) -> Path:
     """Convert text to speech using OpenAI or Google Cloud TTS."""
     # Strip any stage directions before TTS
     text = strip_stage_directions(text)
+    # Fix pronunciation for non-English words
+    text = fix_pronunciation(text)
     voice_name = voice_name or DEFAULT_VOICE
 
     # Check if using OpenAI voice
@@ -243,8 +264,23 @@ def assemble_episode(session_id: str, gap_ms: int = 800, ambiance_volume: float 
         if len(intro_audio.shape) > 1:
             intro_audio = intro_audio.mean(axis=1)
         segments.append(intro_audio.astype(np.float32))
-        # Add gap after intro before SYD speaks
-        segments.append(np.zeros(int(SAMPLE_RATE * 1.5), dtype=np.float32))  # 1.5s gap
+        # Small gap after intro
+        segments.append(np.zeros(int(SAMPLE_RATE * 0.5), dtype=np.float32))  # 0.5s gap
+
+    # Add phone ringing after intro
+    phone_ring_file = AUDIO_SFX_DIR / "phone-ringing.wav"
+    if phone_ring_file.exists():
+        ring_audio, ring_sr = sf.read(phone_ring_file)
+        if ring_sr != SAMPLE_RATE:
+            from scipy import signal
+            num_samples = int(len(ring_audio) * SAMPLE_RATE / ring_sr)
+            ring_audio = signal.resample(ring_audio, num_samples)
+        # Convert to mono if stereo
+        if len(ring_audio.shape) > 1:
+            ring_audio = ring_audio.mean(axis=1)
+        segments.append(ring_audio.astype(np.float32))
+        # Gap after phone ring before SYD speaks
+        segments.append(np.zeros(int(SAMPLE_RATE * 1.0), dtype=np.float32))  # 1s gap
 
     for i, syd_file in enumerate(syd_files):
         # Add SYD's audio
