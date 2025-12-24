@@ -17,6 +17,7 @@ Thumbs.db
 .env
 *.json
 !package.json
+!profiles/*.json
 service-account*.json
 
 # Python
