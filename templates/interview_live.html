@@ -451,6 +451,13 @@ audio {
     <h2>Start Live Interview</h2>
 
     <div class="form-group">
+        <label for="profile">Load Profile</label>
+        <select id="profile" onchange="loadProfile()">
+            <option value="">-- Select a profile --</option>
+        </select>
+    </div>
+
+    <div class="form-group">
         <label for="guestName">Interviewee Name</label>
         <textarea id="guestName" rows="1" placeholder="e.g., TK">{{ guest_name }}</textarea>
     </div>
@@ -742,6 +749,7 @@ async function updateUsage() {
 
 // Check for recovery on load and load voices/models
 window.addEventListener('load', () => {
+    loadProfiles();
     loadModels();
     loadVoices();
     loadSFX();
@@ -750,6 +758,49 @@ window.addEventListener('load', () => {
     // Update usage every 10 seconds
     setInterval(updateUsage, 10000);
 });
+
+async function loadProfiles() {
+    try {
+        const response = await fetch('/api/profiles');
+        const data = await response.json();
+        const select = document.getElementById('profile');
+
+        data.profiles.forEach(profile => {
+            const option = document.createElement('option');
+            option.value = profile.id;
+            option.textContent = profile.name;
+            select.appendChild(option);
+        });
+    } catch (e) {
+        console.error('Failed to load profiles:', e);
+    }
+}
+
+async function loadProfile() {
+    const profileId = document.getElementById('profile').value;
+    if (!profileId) return;
+
+    try {
+        const response = await fetch(`/api/profiles/${profileId}`);
+        const data = await response.json();
+
+        // Populate form fields
+        if (data.guest_name) {
+            document.getElementById('guestName').value = data.guest_name;
+        }
+        if (data.context) {
+            document.getElementById('focusWork').value = data.context;
+        }
+        if (data.unresolved_pressure) {
+            document.getElementById('unresolvedPressure').value = data.unresolved_pressure;
+        }
+        if (data.boundaries) {
+            document.getElementById('boundaries').value = data.boundaries;
+        }
+    } catch (e) {
+        console.error('Failed to load profile:', e);
+    }
+}
 
 async function loadModels() {
     try {

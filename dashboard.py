@@ -76,6 +76,7 @@ AUDIO_REC_DIR = BASE_DIR / "audio" / "recordings"
 AUDIO_EPISODES_DIR = BASE_DIR / "audio" / "episodes"
 AUDIO_SFX_DIR = BASE_DIR / "audio" / "sfx"
 AUDIO_INTROS_DIR = BASE_DIR / "audio" / "intros"
+PROFILES_DIR = BASE_DIR / "profiles"
 
 app = Flask(__name__)
 
@@ -923,6 +924,37 @@ def api_get_models():
         "models": SYD_MODELS,
         "default": DEFAULT_MODEL
     })
+
+
+@app.route("/api/profiles", methods=["GET"])
+def api_get_profiles():
+    """Get available interview profiles."""
+    profiles = []
+    if PROFILES_DIR.exists():
+        for f in sorted(PROFILES_DIR.glob("*.json")):
+            try:
+                with open(f) as pf:
+                    data = json.load(pf)
+                    profiles.append({
+                        "id": f.stem,
+                        "name": data.get("name", f.stem),
+                        "guest_name": data.get("guest_name", "")
+                    })
+            except:
+                pass
+    return jsonify({"profiles": profiles})
+
+
+@app.route("/api/profiles/<profile_id>", methods=["GET"])
+def api_get_profile(profile_id):
+    """Get a specific profile."""
+    profile_path = PROFILES_DIR / f"{profile_id}.json"
+    if not profile_path.exists():
+        return jsonify({"error": "Profile not found"}), 404
+
+    with open(profile_path) as f:
+        data = json.load(f)
+    return jsonify(data)
 
 
 @app.route("/audio/previews/<filename>")
