@@ -51,6 +51,7 @@ SYSTEM_PROMPT_PATH = BASE_DIR / "syd_system_prompt.txt"
 # ============================================================================
 
 _anthropic_client = None
+_openai_client = None
 _tts_client = None
 _whisper_model = None
 
@@ -62,6 +63,15 @@ def get_anthropic_client():
         import anthropic
         _anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     return _anthropic_client
+
+
+def get_openai_client():
+    """Lazy load OpenAI client."""
+    global _openai_client
+    if _openai_client is None:
+        from openai import OpenAI
+        _openai_client = OpenAI()
+    return _openai_client
 
 
 def get_tts_client():
@@ -93,37 +103,81 @@ def load_system_prompt() -> str:
         return f.read()
 
 
-def generate_syd_response(conversation: list[dict], system_prompt: str) -> str:
-    """Generate SYD's next line using Claude."""
-    client = get_anthropic_client()
+# Model ID mappings
+MODEL_IDS = {
+    "claude-sonnet-4": "claude-sonnet-4-20250514",
+    "claude-opus-4": "claude-opus-4-20250514",
+    "gpt-4o": "gpt-4o",
+    "gpt-4o-mini": "gpt-4o-mini",
+}
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=120,  # Punchy but room for mysterious asides
-        system=system_prompt,
-        messages=conversation
-    )
-
-    return response.content[0].text.strip()
+DEFAULT_MODEL = "claude-sonnet-4"
 
 
-def generate_syd_response_with_usage(conversation: list[dict], system_prompt: str) -> tuple[str, dict]:
+def generate_syd_response(conversation: list[dict], system_prompt: str, model: str = None) -> str:
+    """Generate SYD's next line using Claude or OpenAI."""
+    model = model or DEFAULT_MODEL
+    text, _ = generate_syd_response_with_usage(conversation, system_prompt, model)
+    return text
+
+
+def generate_syd_response_with_usage(conversation: list[dict], system_prompt: str, model: str = None) -> tuple[str, dict]:
     """Generate SYD's next line and return token usage."""
+    model = model or DEFAULT_MODEL
+    model_id = MODEL_IDS.get(model, MODEL_IDS[DEFAULT_MODEL])
+
+    # Route to OpenAI or Claude
+    if model.startswith("gpt-"):
+        return _generate_openai(conversation, system_prompt, model_id)
+    else:
+        return _generate_claude(conversation, system_prompt, model_id)
+
+
+def _generate_claude(conversation: list[dict], system_prompt: str, model_id: str) -> tuple[str, dict]:
+    """Generate response using Claude."""
     client = get_anthropic_client()
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=120,
+        model=model_id,
+        max_tokens=150,  # Slightly more room for reflections
         system=system_prompt,
         messages=conversation
     )
 
     usage = {
         "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens
+        "output_tokens": response.usage.output_tokens,
+        "model": model_id
     }
 
     return response.content[0].text.strip(), usage
+
+
+def _generate_openai(conversation: list[dict], system_prompt: str, model_id: str) -> tuple[str, dict]:
+    """Generate response using OpenAI."""
+    client = get_openai_client()
+
+    # Convert conversation format for OpenAI (add system message)
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in conversation:
+        messages.append({
+            "role": msg["role"],
+            "content": msg["content"]
+        })
+
+    response = client.chat.completions.create(
+        model=model_id,
+        max_tokens=150,
+        messages=messages
+    )
+
+    usage = {
+        "input_tokens": response.usage.prompt_tokens,
+        "output_tokens": response.usage.completion_tokens,
+        "model": model_id
+    }
+
+    return response.choices[0].message.content.strip(), usage
 
 
 def text_to_speech(text: str, output_path: Path) -> Path:
@@ -142,7 +196,7 @@ def text_to_speech(text: str, output_path: Path) -> Path:
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.LINEAR16,
         sample_rate_hertz=SAMPLE_RATE,
-        speaking_rate=1.05,  # Quicker, more energetic
+        speaking_rate=0.92,  # Measured, deliberate
         pitch=-1.5  # Subtle depth
     )
 

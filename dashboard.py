@@ -53,6 +53,18 @@ SYD_VOICES = {
 
 DEFAULT_VOICE = os.getenv("SYD_VOICE", "openai:onyx")
 
+# Available LLM models for SYD
+SYD_MODELS = {
+    # Claude models
+    "claude-sonnet-4": "Claude Sonnet 4 - Fast, capable (Default)",
+    "claude-opus-4": "Claude Opus 4 - Most nuanced, best for subtle cues",
+    # OpenAI models
+    "gpt-4o": "GPT-4o - OpenAI's flagship model",
+    "gpt-4o-mini": "GPT-4o Mini - Fast and affordable",
+}
+
+DEFAULT_MODEL = os.getenv("SYD_MODEL", "claude-sonnet-4")
+
 # ============================================================================
 # CONFIG
 # ============================================================================
@@ -625,10 +637,14 @@ def api_create_session():
     guest_name = data.get("guest_name", "").strip()
     context = data.get("context", "").strip()
     voice = data.get("voice", DEFAULT_VOICE)
+    model = data.get("model", DEFAULT_MODEL)
+    text_only = data.get("text_only", False)
 
-    # Validate voice
+    # Validate voice and model
     if voice not in SYD_VOICES:
         voice = DEFAULT_VOICE
+    if model not in SYD_MODELS:
+        model = DEFAULT_MODEL
 
     # Generate session ID
     session_id = datetime.now().strftime("session_%Y%m%d_%H%M%S")
@@ -640,18 +656,21 @@ def api_create_session():
 
     # Generate SYD's opening (need initial user message to prompt Claude)
     conversation = [{"role": "user", "content": "Begin the interview."}]
-    syd_text, usage = generate_syd_response_with_usage(conversation, system_prompt)
+    syd_text, usage = generate_syd_response_with_usage(conversation, system_prompt, model)
 
     # Track API usage
     _api_usage["total_input_tokens"] += usage["input_tokens"]
     _api_usage["total_output_tokens"] += usage["output_tokens"]
     _api_usage["total_requests"] += 1
 
-    # Generate TTS with selected voice
-    tts_dir = AUDIO_TTS_DIR / session_id
-    tts_dir.mkdir(parents=True, exist_ok=True)
-    tts_file = tts_dir / "SYD_01.wav"
-    text_to_speech_with_voice(syd_text, tts_file, voice)
+    # Generate TTS with selected voice (unless text-only mode)
+    audio_url = None
+    if not text_only:
+        tts_dir = AUDIO_TTS_DIR / session_id
+        tts_dir.mkdir(parents=True, exist_ok=True)
+        tts_file = tts_dir / "SYD_01.wav"
+        text_to_speech_with_voice(syd_text, tts_file, voice)
+        audio_url = f"/audio/tts/{session_id}/SYD_01.wav"
 
     # Store session state
     state = {
@@ -660,7 +679,9 @@ def api_create_session():
         "conversation": [{"role": "assistant", "content": syd_text}],
         "turn_count": 1,
         "is_complete": False,
-        "voice": voice
+        "voice": voice,
+        "model": model,
+        "text_only": text_only
     }
     _active_sessions[session_id] = state
     save_session_state(session_id, state)
@@ -668,9 +689,11 @@ def api_create_session():
     return jsonify({
         "session_id": session_id,
         "syd_text": syd_text,
-        "audio_url": f"/audio/tts/{session_id}/SYD_01.wav",
+        "audio_url": audio_url,
         "turn_count": 1,
-        "voice": voice
+        "voice": voice,
+        "model": model,
+        "text_only": text_only
     })
 
 
@@ -691,8 +714,9 @@ def api_session_respond(session_id):
     # Add user response to conversation
     state["conversation"].append({"role": "user", "content": user_text})
 
-    # Generate SYD's response
-    syd_text, usage = generate_syd_response_with_usage(state["conversation"], state["system_prompt"])
+    # Generate SYD's response with selected model
+    model = state.get("model", DEFAULT_MODEL)
+    syd_text, usage = generate_syd_response_with_usage(state["conversation"], state["system_prompt"], model)
     state["conversation"].append({"role": "assistant", "content": syd_text})
     state["turn_count"] += 1
 
@@ -705,12 +729,16 @@ def api_session_respond(session_id):
     is_complete = "concludes" in syd_text.lower() and "review" in syd_text.lower()
     state["is_complete"] = is_complete
 
-    # Generate TTS with session's voice
-    voice = state.get("voice", DEFAULT_VOICE)
-    tts_dir = AUDIO_TTS_DIR / session_id
-    tts_dir.mkdir(parents=True, exist_ok=True)
-    tts_file = tts_dir / f"SYD_{state['turn_count']:02d}.wav"
-    text_to_speech_with_voice(syd_text, tts_file, voice)
+    # Generate TTS with session's voice (unless text-only mode)
+    audio_url = None
+    text_only = state.get("text_only", False)
+    if not text_only:
+        voice = state.get("voice", DEFAULT_VOICE)
+        tts_dir = AUDIO_TTS_DIR / session_id
+        tts_dir.mkdir(parents=True, exist_ok=True)
+        tts_file = tts_dir / f"SYD_{state['turn_count']:02d}.wav"
+        text_to_speech_with_voice(syd_text, tts_file, voice)
+        audio_url = f"/audio/tts/{session_id}/{tts_file.name}"
 
     # Save user recording reference (audio saved separately via /api/transcribe)
     rec_dir = AUDIO_REC_DIR / session_id
@@ -726,9 +754,10 @@ def api_session_respond(session_id):
 
     return jsonify({
         "syd_text": syd_text,
-        "audio_url": f"/audio/tts/{session_id}/{tts_file.name}",
+        "audio_url": audio_url,
         "turn_count": state["turn_count"],
-        "is_complete": is_complete
+        "is_complete": is_complete,
+        "model": model
     })
 
 
@@ -884,6 +913,15 @@ def api_get_voices():
     return jsonify({
         "voices": SYD_VOICES,
         "default": DEFAULT_VOICE
+    })
+
+
+@app.route("/api/models", methods=["GET"])
+def api_get_models():
+    """Get available LLM models for SYD."""
+    return jsonify({
+        "models": SYD_MODELS,
+        "default": DEFAULT_MODEL
     })
 
 

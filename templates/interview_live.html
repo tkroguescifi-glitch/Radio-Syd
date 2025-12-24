@@ -471,6 +471,13 @@ audio {
     </div>
 
     <div class="form-group">
+        <label for="model">SYD's Brain (LLM)</label>
+        <select id="model">
+            <option value="">Loading models...</option>
+        </select>
+    </div>
+
+    <div class="form-group">
         <label for="voice">SYD's Voice</label>
         <div class="voice-row">
             <select id="voice">
@@ -480,6 +487,14 @@ audio {
         </div>
     </div>
     <audio id="previewAudio"></audio>
+
+    <div class="form-group checkbox-group">
+        <label>
+            <input type="checkbox" id="textOnly">
+            Text-only mode (skip voice rendering for faster testing)
+        </label>
+    </div>
+
     <div class="form-group checkbox-group">
         <label>
             <input type="checkbox" id="playIntro">
@@ -725,8 +740,9 @@ async function updateUsage() {
     }
 }
 
-// Check for recovery on load and load voices
+// Check for recovery on load and load voices/models
 window.addEventListener('load', () => {
+    loadModels();
     loadVoices();
     loadSFX();
     checkRecovery();
@@ -734,6 +750,27 @@ window.addEventListener('load', () => {
     // Update usage every 10 seconds
     setInterval(updateUsage, 10000);
 });
+
+async function loadModels() {
+    try {
+        const response = await fetch('/api/models');
+        const data = await response.json();
+        const select = document.getElementById('model');
+        select.innerHTML = '';
+
+        for (const [value, label] of Object.entries(data.models)) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            if (value === data.default) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+    } catch (e) {
+        console.error('Failed to load models:', e);
+    }
+}
 
 async function loadVoices() {
     try {
@@ -851,12 +888,17 @@ function startFresh() {
     setupForm.classList.remove('hidden');
 }
 
+// Track text-only mode for the session
+let textOnlyMode = false;
+
 async function initSession() {
     const guestName = document.getElementById('guestName').value.trim();
     const focusWork = document.getElementById('focusWork').value.trim();
     const unresolvedPressure = document.getElementById('unresolvedPressure').value.trim();
     const boundaries = document.getElementById('boundaries').value.trim();
+    const model = document.getElementById('model').value;
     const voice = document.getElementById('voice').value;
+    textOnlyMode = document.getElementById('textOnly').checked;
 
     // Prevent double-click
     const startBtn = document.querySelector('.btn-start');
@@ -889,7 +931,9 @@ async function initSession() {
             body: JSON.stringify({
                 guest_name: guestName,
                 context: context.trim(),
-                voice: voice
+                model: model,
+                voice: voice,
+                text_only: textOnlyMode
             })
         });
 
@@ -905,29 +949,35 @@ async function initSession() {
         document.getElementById('sessionId').textContent = sessionId;
         document.getElementById('turnCount').textContent = turnCount;
 
-        // Start ambient background sound and random interference
-        startAmbient();
-        startInterference();
+        // Only play audio/sfx if not in text-only mode
+        if (!textOnlyMode) {
+            // Start ambient background sound and random interference
+            startAmbient();
+            startInterference();
 
-        // Play show intro if checkbox is checked
-        const playIntroCheckbox = document.getElementById('playIntro');
-        if (playIntroCheckbox && playIntroCheckbox.checked) {
-            setStatus('Incoming transmission...', 'active');
-            await playShowIntro();
+            // Play show intro if checkbox is checked
+            const playIntroCheckbox = document.getElementById('playIntro');
+            if (playIntroCheckbox && playIntroCheckbox.checked) {
+                setStatus('Incoming transmission...', 'active');
+                await playShowIntro();
+            }
+
+            // Add SYD's opening to transcript
+            addTurnToTranscript('SYD', data.syd_text);
+
+            // Play intro SFX (phone ring) if available
+            setStatus('Calling...', 'active');
+            await playIntroSFX();
+
+            // Play SYD's audio
+            setStatus('Playing SYD...', 'active');
+            await playAudio(data.audio_url);
+        } else {
+            // Text-only mode: just show transcript
+            addTurnToTranscript('SYD', data.syd_text);
         }
 
-        // Add SYD's opening to transcript
-        addTurnToTranscript('SYD', data.syd_text);
-
-        // Play intro SFX (phone ring) if available
-        setStatus('Calling...', 'active');
-        await playIntroSFX();
-
-        // Play SYD's audio
-        setStatus('Playing SYD...', 'active');
-        await playAudio(data.audio_url);
-
-        setStatus('Your turn. Click Record to respond.', 'active');
+        setStatus('Your turn. Click Record or type to respond.', 'active');
         recordBtn.disabled = false;
 
         // Update usage display
@@ -1132,9 +1182,11 @@ async function sendUserText(userText) {
         turnCount = respondData.turn_count;
         document.getElementById('turnCount').textContent = turnCount;
 
-        // Play audio
-        setStatus('Playing SYD...', 'active');
-        await playAudio(respondData.audio_url);
+        // Play audio if not in text-only mode
+        if (!textOnlyMode && respondData.audio_url) {
+            setStatus('Playing SYD...', 'active');
+            await playAudio(respondData.audio_url);
+        }
 
         // Update usage display
         updateUsage();
@@ -1147,7 +1199,7 @@ async function sendUserText(userText) {
             recordBtn.disabled = true;
             localStorage.removeItem('active_session_id');
         } else {
-            setStatus('Your turn. Click Record to respond.', 'active');
+            setStatus('Your turn. Click Record or type to respond.', 'active');
             recordBtn.disabled = false;
         }
 
