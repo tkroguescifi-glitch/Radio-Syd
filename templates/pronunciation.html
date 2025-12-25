@@ -35,6 +35,26 @@
     color: var(--subject);
 }
 
+.actions-col {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-listen {
+    background: none;
+    border: 1px solid var(--syd);
+    color: var(--syd);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-listen:hover {
+    background: var(--syd);
+    color: var(--bg);
+}
+
 .btn-delete {
     background: none;
     border: 1px solid var(--danger);
@@ -361,7 +381,10 @@ function renderList(pronunciations) {
         <tr>
             <td class="word-col">${escapeHtml(word)}</td>
             <td class="phonetic-col">${escapeHtml(phonetic)}</td>
-            <td><button class="btn-delete" onclick="deleteWord('${escapeHtml(word)}')">Delete</button></td>
+            <td class="actions-col">
+                <button class="btn-listen" onclick="listenWord('${escapeHtml(phonetic).replace(/'/g, "\\'")}')">Listen</button>
+                <button class="btn-delete" onclick="deleteWord('${escapeHtml(word).replace(/'/g, "\\'")}')">Delete</button>
+            </td>
         </tr>
     `).join('');
 }
@@ -399,6 +422,30 @@ async function addWord() {
         }
     } catch (e) {
         showStatus('Failed to add word', 'error');
+    }
+}
+
+async function listenWord(phonetic) {
+    try {
+        const response = await fetch('/api/pronunciation/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: phonetic, apply_fixes: false })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const audio = document.getElementById('previewAudio');
+            audio.src = data.audio_url;
+            audio.style.display = 'block';
+            audio.controls = true;
+            audio.play().catch(() => {});
+        } else {
+            showStatus(data.error || 'Failed to render', 'error');
+        }
+    } catch (e) {
+        showStatus('Failed to render audio', 'error');
     }
 }
 
