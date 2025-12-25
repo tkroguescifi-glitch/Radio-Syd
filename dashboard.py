@@ -1100,6 +1100,7 @@ def api_suggest_phonetic():
         ("ei", "ay"),
         ("aa", "ah"),
         ("ee", "ee-uh"),
+        ("uu", "ee-uh"),
         ("oo", "oh"),
         ("ou", "oh"),
         ("eu", "ee-uh"),
@@ -1108,6 +1109,10 @@ def api_suggest_phonetic():
         ("dj", "j"),
         ("sch", "sk"),
         ("ch", "sh"),
+        # 'g' before consonants (guttural)
+        ("gl", "chl"),
+        ("gr", "chr"),
+        ("gn", "chn"),
         # Initial 'g' before vowels (guttural)
         ("ge", "che"),
         ("gi", "chi"),
