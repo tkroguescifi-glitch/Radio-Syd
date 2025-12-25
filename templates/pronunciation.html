@@ -55,6 +55,46 @@
     color: var(--bg);
 }
 
+.btn-edit {
+    background: none;
+    border: 1px solid var(--text-dim);
+    color: var(--text-dim);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-edit:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-save {
+    background: none;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-save:hover {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+.phonetic-edit {
+    background: var(--bg);
+    border: 1px solid var(--subject);
+    color: var(--text);
+    padding: 0.25rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    width: 100%;
+}
+
 .btn-delete {
     background: none;
     border: 1px solid var(--danger);
@@ -378,11 +418,16 @@ function renderList(pronunciations) {
     }
 
     tbody.innerHTML = Object.entries(pronunciations).map(([word, phonetic]) => `
-        <tr>
+        <tr data-word="${escapeHtml(word)}">
             <td class="word-col">${escapeHtml(word)}</td>
-            <td class="phonetic-col">${escapeHtml(phonetic)}</td>
+            <td class="phonetic-col">
+                <span class="phonetic-display">${escapeHtml(phonetic)}</span>
+                <input type="text" class="phonetic-edit hidden" value="${escapeHtml(phonetic)}">
+            </td>
             <td class="actions-col">
                 <button class="btn-listen" onclick="listenWord('${escapeHtml(phonetic).replace(/'/g, "\\'")}')">Listen</button>
+                <button class="btn-edit" onclick="editWord(this)">Edit</button>
+                <button class="btn-save hidden" onclick="saveWord(this, '${escapeHtml(word).replace(/'/g, "\\'")}')">Save</button>
                 <button class="btn-delete" onclick="deleteWord('${escapeHtml(word).replace(/'/g, "\\'")}')">Delete</button>
             </td>
         </tr>
@@ -422,6 +467,43 @@ async function addWord() {
         }
     } catch (e) {
         showStatus('Failed to add word', 'error');
+    }
+}
+
+function editWord(btn) {
+    const row = btn.closest('tr');
+    row.querySelector('.phonetic-display').classList.add('hidden');
+    row.querySelector('.phonetic-edit').classList.remove('hidden');
+    row.querySelector('.btn-edit').classList.add('hidden');
+    row.querySelector('.btn-save').classList.remove('hidden');
+    row.querySelector('.phonetic-edit').focus();
+}
+
+async function saveWord(btn, word) {
+    const row = btn.closest('tr');
+    const newPhonetic = row.querySelector('.phonetic-edit').value.trim();
+
+    if (!newPhonetic) {
+        showStatus('Phonetic spelling cannot be empty', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/pronunciation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word, phonetic: newPhonetic })
+        });
+
+        if (response.ok) {
+            showStatus(`Updated: ${word}`, 'success');
+            loadPronunciations();
+        } else {
+            const data = await response.json();
+            showStatus(data.error || 'Failed to update', 'error');
+        }
+    } catch (e) {
+        showStatus('Failed to update', 'error');
     }
 }
 
