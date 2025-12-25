@@ -128,20 +128,29 @@ def strip_stage_directions(text: str) -> str:
     return cleaned
 
 
-# Pronunciation fixes for Afrikaans and other non-English words
-PRONUNCIATION_FIXES = {
-    "Sluip-Sluip": "Slape-Slape",
-    "Sluip Sluip": "Slape Slape",
-    "Die Rubriek": "Dee Roo-breek",
-    "Node-237": "Node two three seven",
-    "Node 237": "Node two three seven",
-}
+# Pronunciation fixes file path
+PRONUNCIATION_FILE = BASE_DIR / "pronunciation.json"
+
+
+def load_pronunciation_fixes() -> dict:
+    """Load pronunciation fixes from JSON file."""
+    if PRONUNCIATION_FILE.exists():
+        with open(PRONUNCIATION_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_pronunciation_fixes(fixes: dict):
+    """Save pronunciation fixes to JSON file."""
+    with open(PRONUNCIATION_FILE, "w") as f:
+        json.dump(fixes, f, indent=2, ensure_ascii=False)
 
 
 def fix_pronunciation(text: str) -> str:
     """Replace words with phonetic equivalents for better TTS pronunciation."""
     import re
-    for word, phonetic in PRONUNCIATION_FIXES.items():
+    fixes = load_pronunciation_fixes()
+    for word, phonetic in fixes.items():
         # Case-insensitive replacement
         text = re.sub(re.escape(word), phonetic, text, flags=re.IGNORECASE)
     return text
@@ -236,7 +245,7 @@ def _google_tts(text: str, output_path: Path, voice_name: str, robotic: bool = F
     return output_path
 
 
-def assemble_episode(session_id: str, gap_ms: int = 800, ambiance_volume: float = 0.25) -> Path:
+def assemble_episode(session_id: str, gap_ms: int = 800, ambiance_volume: float = 0.0) -> Path:
     """
     Assemble session audio files into a single episode.
 
@@ -1015,6 +1024,54 @@ def api_get_usage():
         "requests": _api_usage["total_requests"],
         "estimated_cost_usd": round(total_cost, 4)
     })
+
+
+# ============================================================================
+# PRONUNCIATION MANAGEMENT
+# ============================================================================
+
+@app.route("/pronunciation")
+def pronunciation_page():
+    """Pronunciation management page."""
+    return render_template("pronunciation.html")
+
+
+@app.route("/api/pronunciation", methods=["GET"])
+def api_get_pronunciation():
+    """Get all pronunciation mappings."""
+    fixes = load_pronunciation_fixes()
+    return jsonify({"pronunciations": fixes})
+
+
+@app.route("/api/pronunciation", methods=["POST"])
+def api_add_pronunciation():
+    """Add a new pronunciation mapping."""
+    data = request.json or {}
+    word = data.get("word", "").strip()
+    phonetic = data.get("phonetic", "").strip()
+
+    if not word or not phonetic:
+        return jsonify({"error": "Both word and phonetic are required"}), 400
+
+    fixes = load_pronunciation_fixes()
+    fixes[word] = phonetic
+    save_pronunciation_fixes(fixes)
+
+    return jsonify({"success": True, "word": word, "phonetic": phonetic})
+
+
+@app.route("/api/pronunciation/<path:word>", methods=["DELETE"])
+def api_delete_pronunciation(word):
+    """Delete a pronunciation mapping."""
+    fixes = load_pronunciation_fixes()
+
+    if word not in fixes:
+        return jsonify({"error": "Word not found"}), 404
+
+    del fixes[word]
+    save_pronunciation_fixes(fixes)
+
+    return jsonify({"success": True, "deleted": word})
 
 
 # ============================================================================

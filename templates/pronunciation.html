@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Pronunciation // Radio SYD{% endblock %}
+
+{% block extra_styles %}
+.pronunciation-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+}
+
+.pronunciation-table th,
+.pronunciation-table td {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.pronunciation-table th {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.pronunciation-table tr:hover {
+    background: var(--surface);
+}
+
+.word-col {
+    color: var(--syd);
+}
+
+.phonetic-col {
+    color: var(--subject);
+}
+
+.btn-delete {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-delete:hover {
+    background: var(--danger);
+    color: var(--bg);
+}
+
+.add-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.add-form h3 {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.form-group {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+}
+
+.form-group input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn-add {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-add:hover {
+    opacity: 0.9;
+}
+
+.cheat-sheet {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.cheat-sheet h3 {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.cheat-sheet table {
+    width: 100%;
+    font-size: 0.85rem;
+}
+
+.cheat-sheet td {
+    padding: 0.25rem 0.5rem;
+}
+
+.cheat-sheet td:first-child {
+    color: var(--syd);
+}
+
+.cheat-sheet td:last-child {
+    color: var(--subject);
+}
+
+.back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+
+.status-message {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+
+.status-message.success {
+    background: rgba(0, 255, 157, 0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+
+.status-message.error {
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+}
+
+.hidden {
+    display: none;
+}
+{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">&larr; Back to Sessions</a>
+
+<h2>Pronunciation Fixes</h2>
+
+<div id="statusMessage" class="status-message hidden"></div>
+
+<div class="add-form">
+    <h3>Add New Word</h3>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="word">Afrikaans Word</label>
+            <input type="text" id="word" placeholder="e.g., Sluip-Sluip">
+        </div>
+        <div class="form-group">
+            <label for="phonetic">Phonetic Spelling</label>
+            <input type="text" id="phonetic" placeholder="e.g., Slape-Slape">
+        </div>
+        <button class="btn-add" onclick="addWord()">Add</button>
+    </div>
+</div>
+
+<table class="pronunciation-table">
+    <thead>
+        <tr>
+            <th>Original Word</th>
+            <th>Phonetic</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody id="pronunciationList">
+        <!-- Loaded dynamically -->
+    </tbody>
+</table>
+
+<div class="cheat-sheet">
+    <h3>Afrikaans Pronunciation Guide</h3>
+    <table>
+        <tr><td>g (guttural)</td><td>"ch" or "kh"</td></tr>
+        <tr><td>oe</td><td>"oo"</td></tr>
+        <tr><td>ie</td><td>"ee"</td></tr>
+        <tr><td>ui</td><td>"oy"</td></tr>
+        <tr><td>aa</td><td>"ah"</td></tr>
+        <tr><td>ei</td><td>"ay"</td></tr>
+        <tr><td>Die</td><td>"Dee"</td></tr>
+        <tr><td>oo</td><td>"oh"</td></tr>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadPronunciations() {
+    try {
+        const response = await fetch('/api/pronunciation');
+        const data = await response.json();
+        renderList(data.pronunciations);
+    } catch (e) {
+        showStatus('Failed to load pronunciations', 'error');
+    }
+}
+
+function renderList(pronunciations) {
+    const tbody = document.getElementById('pronunciationList');
+
+    if (Object.keys(pronunciations).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">No pronunciation fixes yet</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = Object.entries(pronunciations).map(([word, phonetic]) => `
+        <tr>
+            <td class="word-col">${escapeHtml(word)}</td>
+            <td class="phonetic-col">${escapeHtml(phonetic)}</td>
+            <td><button class="btn-delete" onclick="deleteWord('${escapeHtml(word)}')">Delete</button></td>
+        </tr>
+    `).join('');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function addWord() {
+    const word = document.getElementById('word').value.trim();
+    const phonetic = document.getElementById('phonetic').value.trim();
+
+    if (!word || !phonetic) {
+        showStatus('Both fields are required', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/pronunciation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word, phonetic })
+        });
+
+        if (response.ok) {
+            document.getElementById('word').value = '';
+            document.getElementById('phonetic').value = '';
+            showStatus(`Added: ${word} → ${phonetic}`, 'success');
+            loadPronunciations();
+        } else {
+            const data = await response.json();
+            showStatus(data.error || 'Failed to add', 'error');
+        }
+    } catch (e) {
+        showStatus('Failed to add word', 'error');
+    }
+}
+
+async function deleteWord(word) {
+    if (!confirm(`Delete pronunciation for "${word}"?`)) return;
+
+    try {
+        const response = await fetch(`/api/pronunciation/${encodeURIComponent(word)}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showStatus(`Deleted: ${word}`, 'success');
+            loadPronunciations();
+        } else {
+            const data = await response.json();
+            showStatus(data.error || 'Failed to delete', 'error');
+        }
+    } catch (e) {
+        showStatus('Failed to delete word', 'error');
+    }
+}
+
+function showStatus(message, type) {
+    const el = document.getElementById('statusMessage');
+    el.textContent = message;
+    el.className = `status-message ${type}`;
+    el.classList.remove('hidden');
+
+    setTimeout(() => {
+        el.classList.add('hidden');
+    }, 3000);
+}
+
+// Load on page load
+window.addEventListener('load', loadPronunciations);
+</script>
+{% endblock %}

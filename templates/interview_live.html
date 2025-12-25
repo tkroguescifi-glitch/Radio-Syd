@@ -1002,10 +1002,6 @@ async function initSession() {
 
         // Only play audio/sfx if not in text-only mode
         if (!textOnlyMode) {
-            // Start ambient background sound and random interference
-            startAmbient();
-            startInterference();
-
             // Play show intro if checkbox is checked
             const playIntroCheckbox = document.getElementById('playIntro');
             if (playIntroCheckbox && playIntroCheckbox.checked) {

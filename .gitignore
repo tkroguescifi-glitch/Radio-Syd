@@ -18,6 +18,7 @@ Thumbs.db
 *.json
 !package.json
 !profiles/*.json
+!pronunciation.json
 service-account*.json
 
 # Python
