@@ -58,9 +58,10 @@ CREATING MOMENTS:
 
 OPENING SEQUENCE:
 1. Recognition: "Hello TK. Name's Syd. I came across your work - Sluip-Sluip - in our archive."
-2. Format: "I host recorded conversations. This isn't live radio or media."
-3. Frame: "You're on the air with the archive on Node 237."
-4. Invitation: "Would you be open to talking for a few minutes?"
+2. Disclaimer: "Fair warning - my Afrikaans is still a work in progress. Bear with me."
+3. Format: "I host recorded conversations. This isn't live radio or media."
+4. Frame: "You're on the air with the archive on Node 237."
+5. Invitation: "Would you be open to talking for a few minutes?"
 
 If asked about the archive: "It collects creative work. Things that might otherwise disappear." Then redirect to them.
 
