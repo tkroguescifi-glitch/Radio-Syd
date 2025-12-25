@@ -1074,6 +1074,98 @@ def api_delete_pronunciation(word):
     return jsonify({"success": True, "deleted": word})
 
 
+@app.route("/api/pronunciation/suggest", methods=["POST"])
+def api_suggest_phonetic():
+    """Suggest phonetic spelling for Afrikaans word."""
+    data = request.json or {}
+    word = data.get("word", "").strip()
+
+    if not word:
+        return jsonify({"error": "No word provided"}), 400
+
+    # Apply Afrikaans → English phonetic rules
+    phonetic = word
+
+    # Order matters: apply longer patterns first
+    rules = [
+        # Digraphs and common patterns
+        ("oei", "oo-ee"),
+        ("ooi", "oh-ee"),
+        ("aai", "ah-ee"),
+        ("eeu", "ee-oo"),
+        ("oeu", "oo-uh"),
+        ("oe", "oo"),
+        ("ie", "ee"),
+        ("ui", "oy"),
+        ("ei", "ay"),
+        ("aa", "ah"),
+        ("ee", "ee-uh"),
+        ("oo", "oh"),
+        ("ou", "oh"),
+        ("eu", "ee-uh"),
+        # Consonants
+        ("tj", "ch"),
+        ("dj", "j"),
+        ("sch", "sk"),
+        ("ch", "sh"),
+        # Initial 'g' before vowels (guttural)
+        ("ge", "che"),
+        ("gi", "chi"),
+        ("ga", "cha"),
+        ("go", "cho"),
+        ("gu", "chu"),
+        # Word patterns
+        ("Die ", "Dee "),
+        ("die ", "dee "),
+    ]
+
+    for pattern, replacement in rules:
+        phonetic = phonetic.replace(pattern, replacement)
+
+    return jsonify({
+        "success": True,
+        "word": word,
+        "suggested": phonetic
+    })
+
+
+@app.route("/api/pronunciation/test", methods=["POST"])
+def api_test_pronunciation():
+    """Generate TTS audio to test pronunciation."""
+    data = request.json or {}
+    text = data.get("text", "").strip()
+    apply_fixes = data.get("apply_fixes", True)
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    # Apply pronunciation fixes if requested
+    if apply_fixes:
+        processed_text = fix_pronunciation(text)
+    else:
+        processed_text = text
+
+    # Generate audio file
+    test_dir = AUDIO_TTS_DIR / "pronunciation_tests"
+    test_dir.mkdir(parents=True, exist_ok=True)
+
+    # Use timestamp for unique filename
+    from datetime import datetime
+    filename = f"test_{datetime.now().strftime('%H%M%S')}.wav"
+    output_path = test_dir / filename
+
+    # Get default voice
+    voice = DEFAULT_VOICE
+    text_to_speech_with_voice(processed_text, output_path, voice)
+
+    return jsonify({
+        "success": True,
+        "original": text,
+        "processed": processed_text,
+        "audio_url": f"/audio/tts/pronunciation_tests/{filename}"
+    })
+
+
 # ============================================================================
 # MAIN
 # ============================================================================

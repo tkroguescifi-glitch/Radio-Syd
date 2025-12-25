@@ -112,6 +112,31 @@
     opacity: 0.9;
 }
 
+.phonetic-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.phonetic-row input {
+    flex: 1;
+}
+
+.btn-suggest {
+    background: var(--surface);
+    border: 1px solid var(--syd);
+    color: var(--syd);
+    padding: 0.75rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-suggest:hover {
+    background: var(--syd);
+    color: var(--bg);
+}
+
 .cheat-sheet {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -177,6 +202,63 @@
 .hidden {
     display: none;
 }
+
+.test-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.test-section h3 {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.btn-test {
+    background: var(--syd);
+    color: var(--bg);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-test:hover {
+    opacity: 0.9;
+}
+
+.btn-test:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.test-result {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.result-row {
+    margin-bottom: 0.5rem;
+}
+
+.result-row .label {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+}
+
+.test-result audio {
+    width: 100%;
+    margin-top: 1rem;
+}
 {% endblock %}
 
 {% block content %}
@@ -191,11 +273,14 @@
     <div class="form-row">
         <div class="form-group">
             <label for="word">Afrikaans Word</label>
-            <input type="text" id="word" placeholder="e.g., Sluip-Sluip">
+            <input type="text" id="word" placeholder="e.g., Sluip-Sluip" oninput="clearSuggestion()">
         </div>
-        <div class="form-group">
+        <div class="form-group phonetic-group">
             <label for="phonetic">Phonetic Spelling</label>
-            <input type="text" id="phonetic" placeholder="e.g., Slape-Slape">
+            <div class="phonetic-row">
+                <input type="text" id="phonetic" placeholder="e.g., Slape-Slape">
+                <button class="btn-suggest" onclick="suggestPhonetic()">Suggest</button>
+            </div>
         </div>
         <button class="btn-add" onclick="addWord()">Add</button>
     </div>
@@ -213,6 +298,28 @@
         <!-- Loaded dynamically -->
     </tbody>
 </table>
+
+<div class="test-section">
+    <h3>Test Pronunciation</h3>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="testText">Enter Afrikaans text</label>
+            <input type="text" id="testText" placeholder="e.g., Sluip-Sluip - Die Duister is Uit">
+        </div>
+        <button class="btn-test" onclick="testPronunciation()">Render Audio</button>
+    </div>
+    <div id="testResult" class="test-result hidden">
+        <div class="result-row">
+            <span class="label">Original:</span>
+            <span id="testOriginal" class="word-col"></span>
+        </div>
+        <div class="result-row">
+            <span class="label">Phonetic:</span>
+            <span id="testProcessed" class="phonetic-col"></span>
+        </div>
+        <audio id="testAudio" controls></audio>
+    </div>
+</div>
 
 <div class="cheat-sheet">
     <h3>Afrikaans Pronunciation Guide</h3>
@@ -323,6 +430,79 @@ function showStatus(message, type) {
     setTimeout(() => {
         el.classList.add('hidden');
     }, 3000);
+}
+
+async function suggestPhonetic() {
+    const word = document.getElementById('word').value.trim();
+    if (!word) {
+        showStatus('Enter a word first', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/pronunciation/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('phonetic').value = data.suggested;
+            showStatus('Suggestion applied - adjust if needed', 'success');
+        } else {
+            showStatus(data.error || 'Failed to suggest', 'error');
+        }
+    } catch (e) {
+        showStatus('Failed to get suggestion', 'error');
+    }
+}
+
+function clearSuggestion() {
+    // Optional: clear phonetic when word changes
+}
+
+async function testPronunciation() {
+    const text = document.getElementById('testText').value.trim();
+    if (!text) {
+        showStatus('Enter text to test', 'error');
+        return;
+    }
+
+    const btn = document.querySelector('.btn-test');
+    btn.disabled = true;
+    btn.textContent = 'Rendering...';
+
+    try {
+        const response = await fetch('/api/pronunciation/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, apply_fixes: true })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('testOriginal').textContent = data.original;
+            document.getElementById('testProcessed').textContent = data.processed;
+
+            const audio = document.getElementById('testAudio');
+            audio.src = data.audio_url;
+
+            document.getElementById('testResult').classList.remove('hidden');
+
+            // Auto-play
+            audio.play().catch(() => {});
+        } else {
+            showStatus(data.error || 'Failed to render', 'error');
+        }
+    } catch (e) {
+        showStatus('Failed to render audio', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Render Audio';
+    }
 }
 
 // Load on page load
