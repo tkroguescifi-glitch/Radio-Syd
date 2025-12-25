@@ -137,6 +137,27 @@
     color: var(--bg);
 }
 
+.btn-render {
+    background: var(--surface);
+    border: 1px solid var(--subject);
+    color: var(--subject);
+    padding: 0.75rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-render:hover {
+    background: var(--subject);
+    color: var(--bg);
+}
+
+.btn-render:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .cheat-sheet {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -280,10 +301,12 @@
             <div class="phonetic-row">
                 <input type="text" id="phonetic" placeholder="e.g., Slape-Slape">
                 <button class="btn-suggest" onclick="suggestPhonetic()">Suggest</button>
+                <button class="btn-render" onclick="renderPhonetic()">Render</button>
             </div>
         </div>
         <button class="btn-add" onclick="addWord()">Add</button>
     </div>
+    <audio id="previewAudio" style="width:100%; margin-top:1rem; display:none;"></audio>
 </div>
 
 <table class="pronunciation-table">
@@ -298,28 +321,6 @@
         <!-- Loaded dynamically -->
     </tbody>
 </table>
-
-<div class="test-section">
-    <h3>Test Pronunciation</h3>
-    <div class="form-row">
-        <div class="form-group">
-            <label for="testText">Enter Afrikaans text</label>
-            <input type="text" id="testText" placeholder="e.g., Sluip-Sluip - Die Duister is Uit">
-        </div>
-        <button class="btn-test" onclick="testPronunciation()">Render Audio</button>
-    </div>
-    <div id="testResult" class="test-result hidden">
-        <div class="result-row">
-            <span class="label">Original:</span>
-            <span id="testOriginal" class="word-col"></span>
-        </div>
-        <div class="result-row">
-            <span class="label">Phonetic:</span>
-            <span id="testProcessed" class="phonetic-col"></span>
-        </div>
-        <audio id="testAudio" controls></audio>
-    </div>
-</div>
 
 <div class="cheat-sheet">
     <h3>Afrikaans Pronunciation Guide</h3>
@@ -460,17 +461,18 @@ async function suggestPhonetic() {
 }
 
 function clearSuggestion() {
-    // Optional: clear phonetic when word changes
+    // Hide audio player when word changes
+    document.getElementById('previewAudio').style.display = 'none';
 }
 
-async function testPronunciation() {
-    const text = document.getElementById('testText').value.trim();
-    if (!text) {
-        showStatus('Enter text to test', 'error');
+async function renderPhonetic() {
+    const phonetic = document.getElementById('phonetic').value.trim();
+    if (!phonetic) {
+        showStatus('Enter or suggest phonetic spelling first', 'error');
         return;
     }
 
-    const btn = document.querySelector('.btn-test');
+    const btn = document.querySelector('.btn-render');
     btn.disabled = true;
     btn.textContent = 'Rendering...';
 
@@ -478,22 +480,18 @@ async function testPronunciation() {
         const response = await fetch('/api/pronunciation/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, apply_fixes: true })
+            body: JSON.stringify({ text: phonetic, apply_fixes: false })
         });
 
         const data = await response.json();
 
         if (data.success) {
-            document.getElementById('testOriginal').textContent = data.original;
-            document.getElementById('testProcessed').textContent = data.processed;
-
-            const audio = document.getElementById('testAudio');
+            const audio = document.getElementById('previewAudio');
             audio.src = data.audio_url;
-
-            document.getElementById('testResult').classList.remove('hidden');
-
-            // Auto-play
+            audio.style.display = 'block';
+            audio.controls = true;
             audio.play().catch(() => {});
+            showStatus('Audio rendered', 'success');
         } else {
             showStatus(data.error || 'Failed to render', 'error');
         }
@@ -501,7 +499,7 @@ async function testPronunciation() {
         showStatus('Failed to render audio', 'error');
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Render Audio';
+        btn.textContent = 'Render';
     }
 }
 
