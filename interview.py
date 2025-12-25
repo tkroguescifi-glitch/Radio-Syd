@@ -139,7 +139,7 @@ def _generate_claude(conversation: list[dict], system_prompt: str, model_id: str
 
     response = client.messages.create(
         model=model_id,
-        max_tokens=150,  # Slightly more room for reflections
+        max_tokens=300,  # Room for 3-5 sentence responses
         system=system_prompt,
         messages=conversation
     )
@@ -167,7 +167,7 @@ def _generate_openai(conversation: list[dict], system_prompt: str, model_id: str
 
     response = client.chat.completions.create(
         model=model_id,
-        max_tokens=150,
+        max_tokens=300,
         messages=messages
     )
 
