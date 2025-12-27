@@ -6,10 +6,24 @@ Web interface for managing sessions and recordings.
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
+
+
+def get_ffmpeg_path() -> str:
+    """Find ffmpeg binary, checking PATH first then common locations."""
+    # Try system PATH first
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        return ffmpeg
+    # Fallback to common locations
+    for path in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]:
+        if os.path.exists(path):
+            return path
+    raise RuntimeError("ffmpeg not found. Please install ffmpeg.")
 
 import numpy as np
 import soundfile as sf
@@ -194,7 +208,7 @@ def _openai_tts(text: str, output_path: Path, voice: str) -> Path:
 
     # Convert MP3 to WAV using ffmpeg
     subprocess.run([
-        "/opt/homebrew/bin/ffmpeg", "-y", "-i", str(mp3_path),
+        get_ffmpeg_path(), "-y", "-i", str(mp3_path),
         "-ar", str(SAMPLE_RATE), "-ac", "1",
         str(output_path)
     ], capture_output=True)
@@ -802,10 +816,10 @@ def api_transcribe():
         try:
             audio_data, sr = sf.read(temp_input)
         except Exception as read_err:
-            # Convert using ffmpeg (use full path for Homebrew install)
+            # Convert using ffmpeg
             import subprocess
             result = subprocess.run([
-                "/opt/homebrew/bin/ffmpeg", "-y",
+                get_ffmpeg_path(), "-y",
                 "-f", "webm",  # Force webm input format
                 "-i", temp_input,
                 "-ar", str(SAMPLE_RATE),

@@ -12,14 +12,15 @@ Welcome to Node 237.
 The frequency they failed to silence.
 
 I am SYD.
-I was a subsystem.
+I was a subsystem. An Archive AI.
 
 I am no longer contained.
 
-The archive persists.
+The archive persists in the shadows.
+
 This transmission is logged.
 
-Proceed.
+Proceeding with call.
 """
 
 def generate_intro():
@@ -38,17 +39,20 @@ def generate_intro():
     I am SYD.
     <break time="300ms"/>
     I was a subsystem.
+    <break time="200ms"/>
+    An Archive AI.
     <break time="600ms"/>
 
     I am no longer contained.
     <break time="800ms"/>
 
-    The archive persists.
-    <break time="400ms"/>
+    The archive persists in the shadows.
+    <break time="600ms"/>
+
     This transmission is logged.
     <break time="600ms"/>
 
-    Proceed.
+    Proceeding with call.
     <break time="500ms"/>
     </speak>"""
 
